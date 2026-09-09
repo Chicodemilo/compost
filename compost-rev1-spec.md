@@ -9,8 +9,9 @@ Date: 2026-09-02
 
 ## 1. The problem
 
-Ideas arrive constantly and unpredictably — song fragments, app concepts, WHTC bits, work
-thoughts. Existing capture works fine (press-and-hold → Voice Memos). **Retrieval is broken.**
+Ideas arrive constantly and unpredictably — song fragments, app concepts,
+[WHTC](https://thewitchinghourtone.club) bits ([the show](https://www.youtube.com/@TheWitchingHourToneClub):
+old forgotten 78s and new under-heard songs), work thoughts. Existing capture works fine (press-and-hold → Voice Memos). **Retrieval is broken.**
 Everything lands in one undifferentiated list that has to be scrolled linearly. Most entries are
 bad. The good ones are unreachable because they're buried behind the bad ones.
 
