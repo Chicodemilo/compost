@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.compost.ingest</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <!-- Python.app's inner binary, NOT bin/python3: the Full Disk Access grant
+             is on Python.app, and TCC only honors it when this exact executable is
+             the process. install.sh fills this in. -->
+        <string>__PYTHON_APP__/Contents/MacOS/Python</string>
+        <string>__REPO__/ingest.py</string>
+    </array>
+
+    <!-- WatchPaths needs a literal path; ingest.py re-resolves by glob at runtime
+         and StartInterval below is the backstop if this path moves in a macOS update. -->
+    <key>WatchPaths</key>
+    <array>
+        <string>__HOME__/Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings</string>
+    </array>
+
+    <key>StartInterval</key>
+    <integer>1800</integer>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>StandardOutPath</key>
+    <string>__HOME__/compost/logs/launchd.out</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/compost/logs/launchd.err</string>
+</dict>
+</plist>

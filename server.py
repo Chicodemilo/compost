@@ -1,0 +1,169 @@
+#!/usr/bin/env python3
+"""COMPOST — Phase 2 search server. Stdlib only, localhost only.
+
+GET /                    the search page
+GET /api/search?q=...    FTS5 search across all years
+GET /api/search?year=Y   one year's entries (browse view loads years lazily)
+GET /api/search          per-year counts for the folded browse view
+GET /audio/<rel>         audio with Range support so <audio> can seek
+GET /api/classes         the class roster (name -> writeup)
+POST /api/classes        create or update a class {"name": ..., "writeup": ...}
+DELETE /api/classes/<name>  retire a class — falls forward only: already-filed
+                            entries keep it; the clerk just stops offering it
+"""
+
+import json
+import re
+import sqlite3
+import urllib.parse
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from pathlib import Path
+
+COMPOST = Path.home() / "compost"
+DB = COMPOST / "compost.db"
+STATIC = Path(__file__).parent / "static"
+PORT = 8771
+CLASS_NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,23}$")
+
+AUDIO_TYPES = {".m4a": "audio/mp4", ".qta": "audio/mp4", ".wav": "audio/wav"}
+
+
+def query_db(q: str, year: str = "", limit: int = 100):
+    conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    out = {}
+    if q.strip():
+        # quote each term so user input can't break FTS5 syntax
+        match = " ".join(f'"{t}"' for t in re.findall(r"[^\s\"]+", q))
+        rows = conn.execute(
+            """SELECT e.*, snippet(entries_fts, 1, '<mark>', '</mark>', '…', 24) AS snip,
+               (SELECT group_concat(tag, ',') FROM tags WHERE entry_id = e.id) AS tags
+               FROM entries_fts f JOIN entries e ON e.id = f.id
+               WHERE entries_fts MATCH ? ORDER BY e.created_at DESC LIMIT ?""",
+            (match, limit)).fetchall()
+        out["results"] = [dict(r) for r in rows]
+    elif year:
+        rows = conn.execute(
+            "SELECT e.*, substr(e.transcript, 1, 220) AS snip, "
+            "(SELECT group_concat(tag, ',') FROM tags WHERE entry_id = e.id) AS tags "
+            "FROM entries e "
+            "WHERE substr(e.created_at, 1, 4) = ? ORDER BY e.created_at DESC",
+            (year,)).fetchall()
+        out["results"] = [dict(r) for r in rows]
+    else:
+        out["years"] = [{"year": y, "count": c} for y, c in conn.execute(
+            "SELECT substr(created_at, 1, 4), COUNT(*) FROM entries GROUP BY 1 ORDER BY 1 DESC")]
+    total = conn.execute("SELECT COUNT(*), MIN(created_at), MAX(created_at) FROM entries").fetchone()
+    conn.close()
+    out.update(total=total[0], oldest=total[1], newest=total[2])
+    return out
+
+
+def load_classes() -> dict:
+    try:
+        conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+        classes = dict(conn.execute("SELECT name, writeup FROM classes").fetchall())
+        conn.close()
+        return classes
+    except sqlite3.Error:
+        return {}
+
+
+def save_classes(classes: dict) -> None:
+    """Classes are db-native (the one deliberate exception to files-are-truth);
+    rebuild carries this table across instead of reconstructing it."""
+    conn = sqlite3.connect(DB)
+    conn.execute("CREATE TABLE IF NOT EXISTS classes (name TEXT PRIMARY KEY, writeup TEXT NOT NULL)")
+    conn.execute("DELETE FROM classes")
+    conn.executemany("INSERT INTO classes VALUES (?,?)", classes.items())
+    conn.commit()
+    conn.close()
+
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, *a):  # quiet
+        pass
+
+    def _send(self, code, ctype, body, extra=None):
+        try:
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            for k, v in (extra or {}).items():
+                self.send_header(k, v)
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # browser aborted (audio seek, page close) — not an error
+
+    def do_GET(self):
+        url = urllib.parse.urlparse(self.path)
+        if url.path == "/":
+            self._send(200, "text/html; charset=utf-8", (STATIC / "index.html").read_bytes())
+        elif url.path == "/api/search":
+            qs = urllib.parse.parse_qs(url.query)
+            body = json.dumps(query_db(qs.get("q", [""])[0], qs.get("year", [""])[0])).encode()
+            self._send(200, "application/json", body)
+        elif url.path == "/api/classes":
+            self._send(200, "application/json", json.dumps(load_classes()).encode())
+        elif url.path.startswith("/audio/"):
+            rel = urllib.parse.unquote(url.path[len("/audio/"):])
+            f = (COMPOST / "audio" / rel).resolve()
+            if not f.is_relative_to((COMPOST / "audio").resolve()) or not f.is_file():
+                self._send(404, "text/plain", b"not found")
+                return
+            data = f.read_bytes()
+            ctype = AUDIO_TYPES.get(f.suffix, "application/octet-stream")
+            rng = self.headers.get("Range")
+            m = re.match(r"bytes=(\d+)-(\d*)", rng or "")
+            if m:
+                start = int(m.group(1))
+                end = int(m.group(2)) if m.group(2) else len(data) - 1
+                chunk = data[start:end + 1]
+                self._send(206, ctype, chunk, {
+                    "Content-Range": f"bytes {start}-{end}/{len(data)}",
+                    "Accept-Ranges": "bytes"})
+            else:
+                self._send(200, ctype, data, {"Accept-Ranges": "bytes"})
+        else:
+            self._send(404, "text/plain", b"not found")
+
+    def do_POST(self):
+        if urllib.parse.urlparse(self.path).path != "/api/classes":
+            self._send(404, "text/plain", b"not found")
+            return
+        try:
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+            name, writeup = body["name"].strip(), body["writeup"].strip()
+        except (json.JSONDecodeError, KeyError, AttributeError, ValueError):
+            self._send(400, "text/plain", b"bad body")
+            return
+        if not CLASS_NAME_RE.match(name) or not writeup or len(writeup) > 500:
+            self._send(400, "text/plain", b"name must be a short lowercase slug; writeup 1-500 chars")
+            return
+        classes = load_classes()
+        classes[name] = writeup
+        save_classes(classes)
+        self._send(200, "application/json", json.dumps(classes).encode())
+
+    def do_DELETE(self):
+        path = urllib.parse.urlparse(self.path).path
+        if not path.startswith("/api/classes/"):
+            self._send(404, "text/plain", b"not found")
+            return
+        name = urllib.parse.unquote(path[len("/api/classes/"):])
+        if name == "compost":
+            self._send(400, "text/plain", b"compost is load-bearing; it cannot be retired")
+            return
+        classes = load_classes()
+        if name not in classes:
+            self._send(404, "text/plain", b"no such class")
+            return
+        del classes[name]  # falls forward only — filed entries keep their label
+        save_classes(classes)
+        self._send(200, "application/json", json.dumps(classes).encode())
+
+
+if __name__ == "__main__":
+    print(f"compost on http://127.0.0.1:{PORT}")
+    HTTPServer(("127.0.0.1", PORT), Handler).serve_forever()

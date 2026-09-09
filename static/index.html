@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>COMPOST</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌱</text></svg>">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Mono:wght@400;700&display=swap');
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0a0a;
+  color: #c8b89a;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  min-height: 100vh;
+}
+.header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid #1a1a1a;
+  display: flex; align-items: baseline; gap: 16px;
+  position: sticky; top: 0; background: #0a0a0a; z-index: 50;
+}
+.header h1 {
+  font-family: 'Special Elite', cursive;
+  font-size: 22px; color: #e8d5b5;
+  letter-spacing: 3px; text-transform: uppercase;
+}
+.header .sub { font-size: 11px; color: #555; letter-spacing: 2px; text-transform: uppercase; }
+.header .stats { margin-left: auto; font-size: 10px; color: #444; letter-spacing: 1px; }
+.searchbar { padding: 18px 24px; border-bottom: 1px solid #1a1a1a; }
+.searchbar input {
+  width: 100%; max-width: 640px;
+  background: #111; border: 1px solid #2a2a2a; border-radius: 2px;
+  color: #e8d5b5; font-family: 'IBM Plex Mono', monospace; font-size: 14px;
+  padding: 10px 14px; outline: none; letter-spacing: 1px;
+}
+.searchbar input:focus { border-color: #c8b89a; }
+.searchbar input::placeholder { color: #555; }
+#results { padding: 8px 24px 60px; }
+.entry { border-bottom: 1px solid #1a1a1a; padding: 14px 0; }
+.entry .meta-row { display: flex; gap: 14px; align-items: baseline; margin-bottom: 6px; }
+.entry .date { color: #7a8ab8; font-size: 11px; letter-spacing: 1px; }
+.entry .cls {
+  font-size: 9px; color: #555; letter-spacing: 2px; text-transform: uppercase;
+  border: 1px solid #2a2a2a; border-radius: 2px; padding: 1px 6px;
+}
+.entry .dur { font-size: 10px; color: #444; }
+.entry .tag {
+  font-size: 9px; color: #7a8ab8; letter-spacing: 1px;
+  border: 1px solid #232a3d; border-radius: 2px; padding: 1px 6px;
+}
+.entry .snip { color: #c8b89a; line-height: 1.6; max-width: 900px; }
+.entry .snip mark { background: none; color: #f5e8d0; font-weight: 700; }
+.entry audio { margin-top: 8px; height: 28px; width: 100%; max-width: 420px; display: block; filter: invert(0.85) sepia(0.3); }
+.empty { color: #555; padding: 40px 0; letter-spacing: 2px; text-transform: uppercase; font-size: 11px; }
+.year-header {
+  cursor: pointer; user-select: none;
+  padding: 14px 0; border-bottom: 1px solid #1a1a1a;
+  font-family: 'Special Elite', cursive;
+  font-size: 16px; color: #e8d5b5; letter-spacing: 3px;
+}
+.year-header:hover { color: #f5e8d0; }
+.year-header .arrow { color: #555; display: inline-block; width: 16px; font-family: 'IBM Plex Mono', monospace; }
+.year-header .count { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #555; letter-spacing: 1px; }
+.year-body { padding-left: 16px; }
+.loading { color: #555; padding: 12px 0; font-size: 11px; letter-spacing: 2px; }
+.header .classes-toggle {
+  font-size: 10px; color: #555; letter-spacing: 2px; text-transform: uppercase;
+  cursor: pointer; user-select: none;
+}
+.header .classes-toggle:hover { color: #c8b89a; }
+#classes-panel { display: none; padding: 16px 24px; border-bottom: 1px solid #1a1a1a; background: #0d0d0c; }
+#classes-panel.open { display: block; }
+#classes-panel .note { font-size: 10px; color: #555; letter-spacing: 1px; margin-bottom: 12px; text-transform: uppercase; }
+.class-row { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px; max-width: 900px; }
+.class-row .cname {
+  font-family: 'Special Elite', cursive; font-size: 14px; color: #e8d5b5;
+  letter-spacing: 2px; width: 110px; padding-top: 6px; flex-shrink: 0;
+}
+.class-row input.cname-input, .class-row textarea {
+  background: #111; border: 1px solid #2a2a2a; border-radius: 2px;
+  color: #c8b89a; font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+  padding: 6px 8px; outline: none;
+}
+.class-row input.cname-input { width: 110px; flex-shrink: 0; }
+.class-row textarea { flex: 1; resize: vertical; min-height: 68px; line-height: 1.5; }
+.class-row textarea:focus, .class-row input.cname-input:focus { border-color: #c8b89a; }
+.class-row button {
+  background: none; border: 1px solid #2a2a2a; border-radius: 2px; color: #7a8ab8;
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 1px;
+  text-transform: uppercase; padding: 6px 10px; cursor: pointer; margin-top: 2px;
+}
+.class-row button:hover { border-color: #c8b89a; color: #e8d5b5; }
+.class-row button.retire:hover { border-color: #b87a7a; color: #b87a7a; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Compost</h1>
+  <span class="sub">the pile</span>
+  <span class="stats" id="stats"></span>
+  <span class="classes-toggle" onclick="toggleClasses()">classes</span>
+</div>
+<div id="classes-panel">
+  <div class="note">edits fall forward — the clerk files future memos by these; already-filed entries keep their label</div>
+  <div id="class-rows"></div>
+</div>
+<div class="searchbar">
+  <input id="q" type="search" placeholder="search the pile…" autofocus autocomplete="off">
+</div>
+<div id="results"></div>
+<script>
+const q = document.getElementById('q');
+const results = document.getElementById('results');
+const stats = document.getElementById('stats');
+let timer = null;
+
+function fmtDate(iso) {
+  return iso ? iso.slice(0, 16).replace('T', ' · ') : '?';
+}
+function fmtDur(s) {
+  if (!s) return '';
+  const m = Math.floor(s / 60), sec = Math.round(s % 60);
+  return m ? `${m}m${String(sec).padStart(2,'0')}s` : `${sec}s`;
+}
+
+function entryHTML(e) {
+  return `
+    <div class="entry">
+      <div class="meta-row">
+        <span class="date">${fmtDate(e.created_at)}</span>
+        <span class="cls">${e.class}</span>
+        ${(e.tags || '').split(',').filter(Boolean).map(t => `<span class="tag">${t}</span>`).join('')}
+        <span class="dur">${fmtDur(e.duration)}</span>
+      </div>
+      <div class="snip">${e.snip || '<span style="color:#444">(no transcript)</span>'}</div>
+      <audio controls preload="none" src="/audio/${encodeURIComponent(e.audio_path.replace(/^audio\//,''))}"></audio>
+    </div>`;
+}
+
+function setStats(data) {
+  stats.textContent = `${data.total} entries · ${(data.oldest||'').slice(0,4)}–${(data.newest||'').slice(0,4)}`;
+}
+
+const expanded = new Set();       // survives search-and-clear
+const yearCache = new Map();      // year -> entries, fetched once
+
+async function search() {
+  if (!q.value.trim()) return showYears();
+  const r = await fetch('/api/search?q=' + encodeURIComponent(q.value));
+  const data = await r.json();
+  if (!q.value.trim()) return;    // box was cleared while fetching
+  setStats(data);
+  results.innerHTML = data.results.length
+    ? data.results.map(entryHTML).join('')
+    : '<div class="empty">nothing in the pile matches</div>';
+}
+
+async function showYears() {
+  const r = await fetch('/api/search');
+  const data = await r.json();
+  if (q.value.trim()) return;     // user started typing while fetching
+  setStats(data);
+  results.innerHTML = data.years.map(y => `
+    <div class="year">
+      <div class="year-header" onclick="toggleYear('${y.year}')">
+        <span class="arrow">&#9656;</span>${y.year} <span class="count">· ${y.count}</span>
+      </div>
+      <div class="year-body" id="yr-${y.year}"></div>
+    </div>`).join('');
+  expanded.forEach(renderYear);   // restore fold state after a cleared search
+}
+
+async function renderYear(year) {
+  const body = document.getElementById('yr-' + year);
+  if (!body) return;
+  body.previousElementSibling.querySelector('.arrow').innerHTML = '&#9662;';
+  if (!yearCache.has(year)) {
+    body.innerHTML = '<div class="loading">digging…</div>';
+    const r = await fetch('/api/search?year=' + year);
+    yearCache.set(year, (await r.json()).results);
+  }
+  if (!expanded.has(year)) return;  // collapsed again while fetching
+  body.innerHTML = yearCache.get(year).map(entryHTML).join('');
+}
+
+function toggleYear(year) {
+  const body = document.getElementById('yr-' + year);
+  if (expanded.has(year)) {
+    expanded.delete(year);
+    body.innerHTML = '';
+    body.previousElementSibling.querySelector('.arrow').innerHTML = '&#9656;';
+  } else {
+    expanded.add(year);
+    renderYear(year);
+  }
+}
+
+// ---- class roster CRUD (edits fall forward only) ----
+const panel = document.getElementById('classes-panel');
+const classRows = document.getElementById('class-rows');
+
+function toggleClasses() {
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) loadClasses();
+}
+
+async function loadClasses() {
+  const classes = await (await fetch('/api/classes')).json();
+  classRows.innerHTML = Object.entries(classes).map(([name, writeup]) => `
+    <div class="class-row">
+      <span class="cname">${name}</span>
+      <textarea id="cw-${name}">${writeup.replace(/</g, '&lt;')}</textarea>
+      <button onclick="saveClass('${name}')">save</button>
+      ${name === 'compost' ? '' : `<button class="retire" onclick="retireClass('${name}')">retire</button>`}
+    </div>`).join('') + `
+    <div class="class-row">
+      <input class="cname-input" id="new-cname" placeholder="new class" autocomplete="off">
+      <textarea id="new-cwriteup" placeholder="write-up the clerk will file by…"></textarea>
+      <button onclick="addClass()">add</button>
+    </div>`;
+}
+
+async function postClass(name, writeup) {
+  const r = await fetch('/api/classes', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name, writeup})
+  });
+  if (!r.ok) { alert(await r.text()); return false; }
+  return true;
+}
+async function saveClass(name) {
+  if (await postClass(name, document.getElementById('cw-' + name).value)) loadClasses();
+}
+async function addClass() {
+  const name = document.getElementById('new-cname').value.trim();
+  const writeup = document.getElementById('new-cwriteup').value.trim();
+  if (name && writeup && await postClass(name, writeup)) loadClasses();
+}
+async function retireClass(name) {
+  const r = await fetch('/api/classes/' + encodeURIComponent(name), {method: 'DELETE'});
+  if (!r.ok) alert(await r.text());
+  loadClasses();
+}
+
+// one voice at a time: starting any player pauses the rest
+document.addEventListener('play', ev => {
+  document.querySelectorAll('audio').forEach(a => { if (a !== ev.target) a.pause(); });
+}, true);
+
+q.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(search, 200); });
+search();
+</script>
+</body>
+</html>
