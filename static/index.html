@@ -37,6 +37,14 @@ body {
 }
 .searchbar input:focus { border-color: #c8b89a; }
 .searchbar input::placeholder { color: #555; }
+#class-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.chip {
+  font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+  color: #555; border: 1px solid #2a2a2a; border-radius: 2px;
+  padding: 3px 10px; cursor: pointer; user-select: none;
+}
+.chip:hover { color: #c8b89a; border-color: #3a3a3a; }
+.chip.active { background: #c8b89a; color: #0a0a0a; border-color: #c8b89a; }
 #results { padding: 8px 24px 60px; }
 .entry { border-bottom: 1px solid #1a1a1a; padding: 14px 0; }
 .entry .meta-row { display: flex; gap: 14px; align-items: baseline; margin-bottom: 6px; }
@@ -108,6 +116,7 @@ body {
 </div>
 <div class="searchbar">
   <input id="q" type="search" placeholder="search the pile…" autofocus autocomplete="off">
+  <div id="class-chips"></div>
 </div>
 <div id="results"></div>
 <script>
@@ -144,11 +153,28 @@ function setStats(data) {
 }
 
 const expanded = new Set();       // survives search-and-clear
-const yearCache = new Map();      // year -> entries, fetched once
+const yearCache = new Map();      // "year|filter" -> entries, fetched once
+const activeCls = new Set();      // class filter; empty = no filter
+const chipRow = document.getElementById('class-chips');
+
+const clsParam = () => [...activeCls].join(',');
+
+function renderChips(classes) {
+  chipRow.innerHTML = classes.map(c =>
+    `<span class="chip${activeCls.has(c) ? ' active' : ''}" onclick="toggleCls('${c}')">${c}</span>`
+  ).join('');
+}
+
+function toggleCls(c) {
+  activeCls.has(c) ? activeCls.delete(c) : activeCls.add(c);
+  [...chipRow.children].forEach(el =>
+    el.classList.toggle('active', activeCls.has(el.textContent)));
+  search();  // re-run whichever view is up, filtered
+}
 
 async function search() {
   if (!q.value.trim()) return showYears();
-  const r = await fetch('/api/search?q=' + encodeURIComponent(q.value));
+  const r = await fetch(`/api/search?q=${encodeURIComponent(q.value)}&cls=${clsParam()}`);
   const data = await r.json();
   if (!q.value.trim()) return;    // box was cleared while fetching
   setStats(data);
@@ -158,10 +184,11 @@ async function search() {
 }
 
 async function showYears() {
-  const r = await fetch('/api/search');
+  const r = await fetch('/api/search?cls=' + clsParam());
   const data = await r.json();
   if (q.value.trim()) return;     // user started typing while fetching
   setStats(data);
+  renderChips(data.classes);
   results.innerHTML = data.years.map(y => `
     <div class="year">
       <div class="year-header" onclick="toggleYear('${y.year}')">
@@ -176,13 +203,14 @@ async function renderYear(year) {
   const body = document.getElementById('yr-' + year);
   if (!body) return;
   body.previousElementSibling.querySelector('.arrow').innerHTML = '&#9662;';
-  if (!yearCache.has(year)) {
+  const key = year + '|' + clsParam();
+  if (!yearCache.has(key)) {
     body.innerHTML = '<div class="loading">digging…</div>';
-    const r = await fetch('/api/search?year=' + year);
-    yearCache.set(year, (await r.json()).results);
+    const r = await fetch(`/api/search?year=${year}&cls=${clsParam()}`);
+    yearCache.set(key, (await r.json()).results);
   }
   if (!expanded.has(year)) return;  // collapsed again while fetching
-  body.innerHTML = yearCache.get(year).map(entryHTML).join('');
+  body.innerHTML = yearCache.get(key).map(entryHTML).join('');
 }
 
 function toggleYear(year) {

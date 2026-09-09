@@ -28,31 +28,44 @@ CLASS_NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,23}$")
 AUDIO_TYPES = {".m4a": "audio/mp4", ".qta": "audio/mp4", ".wav": "audio/wav"}
 
 
-def query_db(q: str, year: str = "", limit: int = 100):
+def query_db(q: str, year: str = "", cls: str = "", limit: int = 100):
     conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     out = {}
+    # the filter honors classes actually worn by entries, not just the live
+    # roster — retired classes never vanish from history, so never from here
+    roster = [r[0] for r in conn.execute("SELECT name FROM classes ORDER BY rowid")]
+    present = {r[0] for r in conn.execute("SELECT DISTINCT class FROM entries")}
+    selected = [c for c in cls.split(",") if c in (set(roster) | present)]  # unknown names ignored
+    cfilter = f" AND e.class IN ({','.join('?' * len(selected))})" if selected else ""
+    tags_sub = "(SELECT group_concat(tag, ',') FROM tags WHERE entry_id = e.id) AS tags"
     if q.strip():
         # quote each term so user input can't break FTS5 syntax
         match = " ".join(f'"{t}"' for t in re.findall(r"[^\s\"]+", q))
         rows = conn.execute(
-            """SELECT e.*, snippet(entries_fts, 1, '<mark>', '</mark>', '…', 24) AS snip,
-               (SELECT group_concat(tag, ',') FROM tags WHERE entry_id = e.id) AS tags
+            f"""SELECT e.*, snippet(entries_fts, 1, '<mark>', '</mark>', '…', 24) AS snip, {tags_sub}
                FROM entries_fts f JOIN entries e ON e.id = f.id
-               WHERE entries_fts MATCH ? ORDER BY e.created_at DESC LIMIT ?""",
-            (match, limit)).fetchall()
+               WHERE entries_fts MATCH ?{cfilter} ORDER BY e.created_at DESC LIMIT ?""",
+            (match, *selected, limit)).fetchall()
         out["results"] = [dict(r) for r in rows]
     elif year:
         rows = conn.execute(
-            "SELECT e.*, substr(e.transcript, 1, 220) AS snip, "
-            "(SELECT group_concat(tag, ',') FROM tags WHERE entry_id = e.id) AS tags "
-            "FROM entries e "
-            "WHERE substr(e.created_at, 1, 4) = ? ORDER BY e.created_at DESC",
-            (year,)).fetchall()
+            f"SELECT e.*, substr(e.transcript, 1, 220) AS snip, {tags_sub} FROM entries e "
+            f"WHERE substr(e.created_at, 1, 4) = ?{cfilter} ORDER BY e.created_at DESC",
+            (year, *selected)).fetchall()
         out["results"] = [dict(r) for r in rows]
     else:
-        out["years"] = [{"year": y, "count": c} for y, c in conn.execute(
-            "SELECT substr(created_at, 1, 4), COUNT(*) FROM entries GROUP BY 1 ORDER BY 1 DESC")]
+        if selected:
+            # FILTER keeps zero-count years in the list — the archive's shape stays visible
+            counts = conn.execute(
+                f"SELECT substr(created_at, 1, 4), COUNT(*) FILTER (WHERE class IN "
+                f"({','.join('?' * len(selected))})) FROM entries GROUP BY 1 ORDER BY 1 DESC",
+                selected)
+        else:
+            counts = conn.execute(
+                "SELECT substr(created_at, 1, 4), COUNT(*) FROM entries GROUP BY 1 ORDER BY 1 DESC")
+        out["years"] = [{"year": y, "count": c} for y, c in counts]
+        out["classes"] = [c for c in roster if c in present] + sorted(present - set(roster))
     total = conn.execute("SELECT COUNT(*), MIN(created_at), MAX(created_at) FROM entries").fetchone()
     conn.close()
     out.update(total=total[0], oldest=total[1], newest=total[2])
@@ -102,7 +115,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, "text/html; charset=utf-8", (STATIC / "index.html").read_bytes())
         elif url.path == "/api/search":
             qs = urllib.parse.parse_qs(url.query)
-            body = json.dumps(query_db(qs.get("q", [""])[0], qs.get("year", [""])[0])).encode()
+            body = json.dumps(query_db(qs.get("q", [""])[0], qs.get("year", [""])[0],
+                                       qs.get("cls", [""])[0])).encode()
             self._send(200, "application/json", body)
         elif url.path == "/api/classes":
             self._send(200, "application/json", json.dumps(load_classes()).encode())
