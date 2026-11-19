@@ -48,19 +48,19 @@ body {
 #results { padding: 8px 24px 60px; }
 .entry { border-bottom: 1px solid #1a1a1a; padding: 14px 0; }
 .entry .meta-row { display: flex; gap: 14px; align-items: baseline; margin-bottom: 6px; }
-.entry .date { color: #7a8ab8; font-size: 11px; letter-spacing: 1px; }
-.entry .cls {
+.entry .date, .active-box .date { color: #7a8ab8; font-size: 11px; letter-spacing: 1px; }
+.entry .cls, .active-box .cls {
   font-size: 9px; color: #555; letter-spacing: 2px; text-transform: uppercase;
   border: 1px solid #2a2a2a; border-radius: 2px; padding: 1px 6px;
 }
-.entry .dur { font-size: 10px; color: #444; }
-.entry .tag {
+.entry .dur, .active-box .dur { font-size: 10px; color: #444; }
+.entry .tag, .active-box .tag {
   font-size: 9px; color: #7a8ab8; letter-spacing: 1px;
   border: 1px solid #232a3d; border-radius: 2px; padding: 1px 6px;
 }
 .entry .snip { color: #c8b89a; line-height: 1.6; max-width: 900px; }
 .entry .snip mark { background: none; color: #f5e8d0; font-weight: 700; }
-.entry audio { margin-top: 8px; height: 28px; width: 100%; max-width: 420px; display: block; filter: invert(0.85) sepia(0.3); }
+.entry audio, .active-box audio { margin-top: 8px; height: 28px; width: 100%; max-width: 420px; display: block; filter: invert(0.85) sepia(0.3); }
 .empty { color: #555; padding: 40px 0; letter-spacing: 2px; text-transform: uppercase; font-size: 11px; }
 .year-header {
   cursor: pointer; user-select: none;
@@ -101,19 +101,57 @@ body {
 }
 .class-row button:hover { border-color: #c8b89a; color: #e8d5b5; }
 .class-row button.retire:hover { border-color: #b87a7a; color: #b87a7a; }
+
+/* ---- active post: random drops one here, clicking a date promotes one ---- */
+.header .random {
+  font-size: 10px; color: #555; letter-spacing: 2px; text-transform: uppercase;
+  cursor: pointer; user-select: none;
+}
+.header .random:hover { color: #c8b89a; }
+#active { display: none; padding: 16px 24px; border-bottom: 1px solid #1a1a1a; }
+#active.open { display: block; }
+.active-box {
+  border: 1px solid #2a2a2a; border-radius: 2px;
+  background: #0d0d0c; padding: 14px 16px; max-width: 900px;
+}
+.active-box .top { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; margin-bottom: 12px; }
+.active-box .label {
+  font-family: 'Special Elite', cursive; font-size: 13px; color: #e8d5b5;
+  letter-spacing: 3px; text-transform: uppercase;
+}
+.active-box .clear {
+  margin-left: auto; font-size: 16px; line-height: 1; color: #555;
+  border: 1px solid #2a2a2a; border-radius: 2px;
+  padding: 1px 7px 3px; cursor: pointer; user-select: none;
+}
+.active-box .clear:hover { color: #b87a7a; border-color: #b87a7a; }
+.deets { display: grid; grid-template-columns: 92px 1fr; gap: 5px 14px; font-size: 11px; margin-bottom: 12px; }
+.deets .k { color: #555; letter-spacing: 2px; text-transform: uppercase; }
+.deets .v { color: #c8b89a; word-break: break-all; }
+.pathlink { color: #7a8ab8; cursor: pointer; border-bottom: 1px dotted #3a4560; }
+.pathlink:hover { color: #e8d5b5; border-bottom-color: #e8d5b5; }
+.full {
+  max-height: 340px; overflow-y: auto; line-height: 1.7; white-space: pre-wrap;
+  border-top: 1px solid #1a1a1a; padding-top: 12px; color: #c8b89a;
+}
+.entry .title, .active-box .title { color: #e8d5b5; font-size: 12px; letter-spacing: 1px; }
+.entry .title.none, .active-box .title.none { color: #3a3a3a; font-style: italic; letter-spacing: 0; }
+.entry .date.pick { cursor: pointer; }
+.entry .date.pick:hover { color: #e8d5b5; border-bottom: 1px dotted #7a8ab8; }
 </style>
 </head>
 <body>
 <div class="header">
   <h1>Compost</h1>
-  <span class="sub">the pile</span>
   <span class="stats" id="stats"></span>
+  <span class="random" onclick="randomPost()">random</span>
   <span class="classes-toggle" onclick="toggleClasses()">classes</span>
 </div>
 <div id="classes-panel">
   <div class="note">edits fall forward — the clerk files future memos by these; already-filed entries keep their label</div>
   <div id="class-rows"></div>
 </div>
+<div id="active"></div>
 <div class="searchbar">
   <input id="q" type="search" placeholder="search the pile…" autofocus autocomplete="off">
   <div id="class-chips"></div>
@@ -138,7 +176,9 @@ function entryHTML(e) {
   return `
     <div class="entry">
       <div class="meta-row">
-        <span class="date">${fmtDate(e.created_at)}</span>
+        <span class="date pick" onclick="setActive('${e.id}')"
+              title="make this the active post">${fmtDate(e.created_at)}</span>
+        ${e.title ? `<span class="title">${esc(e.title)}</span>` : ''}
         <span class="cls">${e.class}</span>
         ${(e.tags || '').split(',').filter(Boolean).map(t => `<span class="tag">${t}</span>`).join('')}
         <span class="dur">${fmtDur(e.duration)}</span>
@@ -277,8 +317,86 @@ document.addEventListener('play', ev => {
   document.querySelectorAll('audio').forEach(a => { if (a !== ev.target) a.pause(); });
 }, true);
 
+// ---- active post: survives searches and reloads until cleared ----
+const activeWrap = document.getElementById('active');
+let activeEntry = null;
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const nfmt = n => n.toLocaleString();
+const words = t => { const x = (t || '').trim(); return x ? x.split(/\s+/).length : 0; };
+
+function deetRows(e) {
+  const rows = [
+    ['id', esc(e.id)],
+    ['source', esc(e.source)],
+    ['status', esc(e.status)],
+    ['indexed', esc(fmtDate(e.indexed_at))],
+    ['length', `${nfmt(words(e.transcript))} words · ${nfmt((e.transcript || '').length)} chars`],
+    ['file', `<span class="pathlink" onclick="revealActive()"
+                    title="reveal in Finder">${esc(e.audio_path)}</span>`],
+  ];
+  // schema carries location but nothing has ever filled it — show only if it does
+  const place = e.place || (e.lat != null && e.lon != null ? `${e.lat}, ${e.lon}` : '');
+  if (place) rows.push(['place', esc(place)]);
+  return rows.map(([k, v]) => `<span class="k">${k}</span><span class="v">${v}</span>`).join('');
+}
+
+function renderActive(e) {
+  activeEntry = e;
+  if (!e) {
+    activeWrap.classList.remove('open');
+    activeWrap.innerHTML = '';
+    localStorage.removeItem('compost.active');
+    return;
+  }
+  localStorage.setItem('compost.active', e.id);
+  activeWrap.innerHTML = `
+    <div class="active-box">
+      <div class="top">
+        <span class="label">active</span>
+        <span class="date">${fmtDate(e.created_at)}</span>
+        ${e.title ? `<span class="title">${esc(e.title)}</span>`
+                  : '<span class="title none">unnamed</span>'}
+        <span class="cls">${esc(e.class)}</span>
+        ${(e.tags || '').split(',').filter(Boolean).map(t => `<span class="tag">${esc(t)}</span>`).join('')}
+        <span class="dur">${fmtDur(e.duration)}</span>
+        <span class="clear" onclick="renderActive(null)" title="clear the active post">×</span>
+      </div>
+      <div class="deets">${deetRows(e)}</div>
+      <audio controls preload="none"
+             src="/audio/${encodeURIComponent(e.audio_path.replace(/^audio\//, ''))}"></audio>
+      <div class="full">${esc(e.transcript) || '<span style="color:#444">(no transcript)</span>'}</div>
+    </div>`;
+  activeWrap.classList.add('open');
+}
+
+async function setActive(id) {
+  const r = await fetch('/api/entry?id=' + encodeURIComponent(id));
+  if (!r.ok) return;
+  renderActive(await r.json());
+}
+
+async function randomPost() {
+  const r = await fetch('/api/random?cls=' + clsParam());
+  if (!r.ok) return;
+  renderActive(await r.json());
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+async function revealActive() {
+  if (!activeEntry) return;
+  const r = await fetch('/api/reveal', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({path: activeEntry.audio_path})
+  });
+  if (!r.ok) alert(await r.text());
+}
+
 q.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(search, 200); });
 search();
+const savedActive = localStorage.getItem('compost.active');
+if (savedActive) setActive(savedActive);
 </script>
 </body>
 </html>

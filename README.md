@@ -21,7 +21,9 @@ that the plumbing might save someone the evening it takes to build.
 - `ingest.py` — watches the Voice Memos directory (launchd WatchPaths plus a
   30-minute timer as backstop). New recordings are copied out, transcribed
   with whisper.cpp large-v3, and written as three files sharing one id:
-  audio, transcript, meta JSON. Idempotent; re-running is a no-op. Failures
+  audio, transcript, meta JSON. The recording's own name travels with it —
+  read straight out of the MP4 atom, no ffmpeg — and `ingest.py titles`
+  backfills it onto anything filed before that was kept. Idempotent; re-running is a no-op. Failures
   quarantine to `~/compost/inbox_failed/`. Zero-byte iCloud placeholders
   (recordings deleted on the phone) are given two chances, then checked with
   a single cheap stat per run. `ingest.py doctor` checks the installation.
@@ -33,11 +35,18 @@ that the plumbing might save someone the evening it takes to build.
   else works without it.
 - `index_db.py` — builds the SQLite FTS5 index from the files. The database
   is disposable: delete it and `rebuild` reconstructs it from the folder.
+  Search covers transcripts and titles both — Voice Memos names a recording
+  after where it was made, so the name of a bar finds the night you were in
+  it, not just the words you said.
 - `server.py` — stdlib-only server on `localhost:8771`. Full-text search
   (porter-stemmed), a year-by-year collapsible browse view, class filter
   chips, inline audio playback with seeking, and a panel for editing the
   class list. Class edits apply to future filing only; already-filed entries
-  keep their labels.
+  keep their labels. An active-post box sits above the search: `random`
+  pulls one entry out of the pile (honoring whatever class chips are lit),
+  clicking any entry's date promotes it, and the box holds it — whole
+  transcript untruncated in a scrollable pane, every column the schema
+  carries, and a clickable audio path that reveals the file in Finder.
 - `static/index.html` — the page. One file, vanilla JS, no build step.
 
 Everything lands in `~/compost/` — audio, transcripts, meta, index, logs.

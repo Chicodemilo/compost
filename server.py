@@ -6,6 +6,9 @@ GET /api/search?q=...    FTS5 search across all years
 GET /api/search?year=Y   one year's entries (browse view loads years lazily)
 GET /api/search          per-year counts for the folded browse view
 GET /audio/<rel>         audio with Range support so <audio> can seek
+GET /api/entry?id=...    one entry, whole transcript, every column + tags
+GET /api/random          one entry at random (honors ?cls= like search does)
+POST /api/reveal         {"path": audio_path} — reveal that file in Finder
 GET /api/classes         the class roster (name -> writeup)
 POST /api/classes        create or update a class {"name": ..., "writeup": ...}
 DELETE /api/classes/<name>  retire a class — falls forward only: already-filed
@@ -15,6 +18,7 @@ DELETE /api/classes/<name>  retire a class — falls forward only: already-filed
 import json
 import re
 import sqlite3
+import subprocess
 import urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
@@ -28,17 +32,43 @@ CLASS_NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,23}$")
 AUDIO_TYPES = {".m4a": "audio/mp4", ".qta": "audio/mp4", ".wav": "audio/wav"}
 
 
+TAGS_SUB = "(SELECT group_concat(tag, ',') FROM tags WHERE entry_id = e.id) AS tags"
+
+
+def class_filter(conn, cls: str):
+    """Honors classes actually worn by entries, not just the live roster —
+    retired classes never vanish from history, so never from here."""
+    roster = [r[0] for r in conn.execute("SELECT name FROM classes ORDER BY rowid")]
+    present = {r[0] for r in conn.execute("SELECT DISTINCT class FROM entries")}
+    selected = [c for c in cls.split(",") if c in (set(roster) | present)]  # unknown names ignored
+    return roster, present, selected
+
+
+def load_entry(entry_id: str = "", cls: str = ""):
+    """One whole entry — full transcript, every column, tags joined.
+    No entry_id means pick at random from whatever the class filter allows."""
+    conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    if entry_id:
+        row = conn.execute(
+            f"SELECT e.*, {TAGS_SUB} FROM entries e WHERE e.id = ?", (entry_id,)).fetchone()
+    else:
+        _, _, selected = class_filter(conn, cls)
+        where = f" WHERE e.class IN ({','.join('?' * len(selected))})" if selected else ""
+        row = conn.execute(
+            f"SELECT e.*, {TAGS_SUB} FROM entries e{where} ORDER BY RANDOM() LIMIT 1",
+            selected).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
 def query_db(q: str, year: str = "", cls: str = "", limit: int = 100):
     conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     out = {}
-    # the filter honors classes actually worn by entries, not just the live
-    # roster — retired classes never vanish from history, so never from here
-    roster = [r[0] for r in conn.execute("SELECT name FROM classes ORDER BY rowid")]
-    present = {r[0] for r in conn.execute("SELECT DISTINCT class FROM entries")}
-    selected = [c for c in cls.split(",") if c in (set(roster) | present)]  # unknown names ignored
+    roster, present, selected = class_filter(conn, cls)
     cfilter = f" AND e.class IN ({','.join('?' * len(selected))})" if selected else ""
-    tags_sub = "(SELECT group_concat(tag, ',') FROM tags WHERE entry_id = e.id) AS tags"
+    tags_sub = TAGS_SUB
     if q.strip():
         # quote each term so user input can't break FTS5 syntax
         match = " ".join(f'"{t}"' for t in re.findall(r"[^\s\"]+", q))
@@ -118,6 +148,14 @@ class Handler(BaseHTTPRequestHandler):
             body = json.dumps(query_db(qs.get("q", [""])[0], qs.get("year", [""])[0],
                                        qs.get("cls", [""])[0])).encode()
             self._send(200, "application/json", body)
+        elif url.path in ("/api/entry", "/api/random"):
+            qs = urllib.parse.parse_qs(url.query)
+            entry = load_entry(qs.get("id", [""])[0] if url.path == "/api/entry" else "",
+                               qs.get("cls", [""])[0])
+            if entry is None:
+                self._send(404, "text/plain", b"no such entry")
+                return
+            self._send(200, "application/json", json.dumps(entry).encode())
         elif url.path == "/api/classes":
             self._send(200, "application/json", json.dumps(load_classes()).encode())
         elif url.path.startswith("/audio/"):
@@ -142,8 +180,36 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._send(404, "text/plain", b"not found")
 
+    def _audio_file(self, rel: str):
+        """Resolve a stored audio_path to a real file under ~/compost/audio,
+        or None. Same containment check the /audio/ route uses."""
+        rel = rel[len("audio/"):] if rel.startswith("audio/") else rel
+        f = (COMPOST / "audio" / rel).resolve()
+        if not f.is_relative_to((COMPOST / "audio").resolve()) or not f.is_file():
+            return None
+        return f
+
+    def _reveal(self):
+        """Open a Finder window with the audio file selected. Localhost-only
+        server, so this is a local convenience, not a remote exec surface —
+        the path still has to land inside ~/compost/audio."""
+        try:
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+            f = self._audio_file(str(body.get("path", "")))
+        except (json.JSONDecodeError, ValueError):
+            f = None
+        if f is None:
+            self._send(400, "text/plain", b"no such audio file")
+            return
+        subprocess.run(["open", "-R", str(f)], check=False)
+        self._send(200, "application/json", b'{"revealed": true}')
+
     def do_POST(self):
-        if urllib.parse.urlparse(self.path).path != "/api/classes":
+        path = urllib.parse.urlparse(self.path).path
+        if path == "/api/reveal":
+            self._reveal()
+            return
+        if path != "/api/classes":
             self._send(404, "text/plain", b"not found")
             return
         try:
