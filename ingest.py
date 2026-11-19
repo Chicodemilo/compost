@@ -9,6 +9,7 @@ already-processed files is a no-op.
 Usage:
     ingest.py            process anything new
     ingest.py doctor     check paths, permissions, and tools; exit non-zero on trouble
+    ingest.py titles     backfill the title field onto meta written before we kept it
 """
 
 import glob
@@ -146,6 +147,51 @@ def duration_of(path: Path) -> float | None:
         return None
 
 
+# on the way to moov > udta > meta > ilst > ©nam > data
+_DESCEND = {b"moov", b"udta", b"meta", b"ilst", b"\xa9nam"}
+
+
+def _atom_name(f, start: int, end: int, depth: int = 0) -> str | None:
+    pos = start
+    while pos + 8 <= end and depth < 8:
+        f.seek(pos)
+        head = f.read(8)
+        if len(head) < 8:
+            return None
+        size, kind, body = int.from_bytes(head[:4], "big"), head[4:8], pos + 8
+        if size == 1:                       # 64-bit extended size follows the header
+            size, body = int.from_bytes(f.read(8), "big"), pos + 16
+        elif size == 0:                     # runs to the end of its parent
+            size = end - pos
+        if size < 8:
+            return None
+        stop = min(pos + size, end)
+        if kind == b"data":                 # only reachable from inside ©nam
+            f.seek(body + 8)                # skip 4-byte type + 4-byte locale
+            return f.read(max(0, stop - body - 8)).decode("utf-8", "replace").strip() or None
+        if kind in _DESCEND:
+            # 'meta' is the odd one out: 4 bytes of version/flags before its children
+            got = _atom_name(f, body + 4 if kind == b"meta" else body, stop, depth + 1)
+            if got:
+                return got
+        pos += size
+    return None
+
+
+def title_of(path: Path) -> str | None:
+    """The recording's own name, from the MP4 '©nam' atom. Voice Memos puts the
+    location there — a street address, or the venue you were standing in — unless
+    you renamed it by hand. Either way it is the one human-authored label the
+    file carries, and the transcript cannot tell you any of it. Parsed with
+    stdlib: ffprobe would do it in a line, but ingest has no ffmpeg dependency and
+    one field is not worth adding one."""
+    try:
+        with path.open("rb") as f:
+            return _atom_name(f, 0, path.stat().st_size)
+    except OSError:
+        return None
+
+
 def transcribe(m4a: Path) -> str:
     """m4a -> 16kHz mono wav (afconvert) -> whisper.cpp large-v3."""
     with tempfile.TemporaryDirectory() as td:
@@ -214,6 +260,7 @@ def ingest_one(src: Path, strikes: dict[str, int]) -> None:
             "created_at": datetime.fromtimestamp(mtime).astimezone().isoformat(timespec="seconds"),
             "source": "vm",
             "source_file": src.name,
+            "title": title_of(audio_dst),
             "class": "compost",
             "tags": [],
             "audio_path": str(audio_dst.relative_to(COMPOST)),
@@ -268,9 +315,33 @@ def doctor() -> None:
     print("all clear")
 
 
+def backfill_titles() -> None:
+    """Fill title onto meta written before ingest kept it. Reads the copies in
+    ~/compost/audio, so it needs no Full Disk Access and never touches the
+    originals. Idempotent — entries already carrying the key are left alone."""
+    filled = blank = already = 0
+    for mp in sorted(META.rglob("*.json")):
+        try:
+            m = json.loads(mp.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+        if "title" in m:
+            already += 1
+            continue
+        audio = COMPOST / (m.get("audio_path") or "")
+        m["title"] = title_of(audio) if audio.is_file() else None
+        mp.write_text(json.dumps(m, indent=2))
+        filled, blank = (filled + 1, blank) if m["title"] else (filled, blank + 1)
+    print(f"titles: {filled} filled, {blank} had none, {already} already set")
+    print("now run: index_db.py rebuild")
+
+
 def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == "doctor":
         doctor()
+        return
+    if len(sys.argv) > 1 and sys.argv[1] == "titles":
+        backfill_titles()
         return
     rec = resolve_recordings_dir()
     try:

@@ -33,6 +33,7 @@ CREATE TABLE entries (
     id          TEXT PRIMARY KEY,
     created_at  TEXT NOT NULL,
     source      TEXT NOT NULL,
+    title       TEXT,
     class       TEXT NOT NULL,
     transcript  TEXT,
     audio_path  TEXT,
@@ -48,8 +49,9 @@ CREATE TABLE tags (
     tag         TEXT NOT NULL,
     PRIMARY KEY (entry_id, tag)
 );
+-- transcript stays column 1: server.py's snippet() addresses it by index
 CREATE VIRTUAL TABLE entries_fts USING fts5(
-    id UNINDEXED, transcript, tokenize='porter'
+    id UNINDEXED, transcript, title, tokenize='porter'
 );
 CREATE TABLE classes (
     name        TEXT PRIMARY KEY,
@@ -74,12 +76,15 @@ def rebuild() -> int:
         tp = COMPOST / "transcripts" / mp.relative_to(COMPOST / "meta").with_suffix(".txt")
         transcript = tp.read_text().strip() if tp.exists() else ""
         conn.execute(
-            "INSERT OR REPLACE INTO entries VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-            (m["id"], m["created_at"], m.get("source", "vm"), m.get("class", "compost"),
-             transcript, m.get("audio_path"), m.get("lat"), m.get("lon"),
-             m.get("place"), m.get("duration"), m.get("status", "raw"), now),
+            "INSERT OR REPLACE INTO entries (id, created_at, source, title, class, transcript,"
+            " audio_path, lat, lon, place, duration, status, indexed_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (m["id"], m["created_at"], m.get("source", "vm"), m.get("title"),
+             m.get("class", "compost"), transcript, m.get("audio_path"), m.get("lat"),
+             m.get("lon"), m.get("place"), m.get("duration"), m.get("status", "raw"), now),
         )
-        conn.execute("INSERT INTO entries_fts (id, transcript) VALUES (?,?)", (m["id"], transcript))
+        conn.execute("INSERT INTO entries_fts (id, transcript, title) VALUES (?,?,?)",
+                     (m["id"], transcript, m.get("title") or ""))
         for t in m.get("tags", []):
             conn.execute("INSERT OR IGNORE INTO tags VALUES (?,?)", (m["id"], t))
         n += 1
