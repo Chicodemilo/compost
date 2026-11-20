@@ -1,7 +1,6 @@
 # COMPOST — Rev 1 Spec
 
 **Personal idea capture & retrieval system**
-Owner: Miles Chick
 Target: Apple-silicon Mac, recent macOS
 Date: 2026-09-02
 
@@ -10,8 +9,10 @@ Date: 2026-09-02
 ## 1. The problem
 
 Ideas arrive constantly and unpredictably — song fragments, app concepts,
-[WHTC](https://thewitchinghourtone.club) bits ([the show](https://www.youtube.com/@TheWitchingHourToneClub):
-old forgotten 78s and new under-heard songs), work thoughts. Existing capture works fine (press-and-hold → Voice Memos). **Retrieval is broken.**
+bits for [WHTC](https://thewitchinghourtone.club), a
+[show](https://www.youtube.com/@TheWitchingHourToneClub) about old forgotten 78s
+and new under-heard songs, and work thoughts. Existing capture works fine
+(press-and-hold → Voice Memos). **Retrieval is broken.**
 Everything lands in one undifferentiated list that has to be scrolled linearly. Most entries are
 bad. The good ones are unreachable because they're buried behind the bad ones.
 
@@ -38,7 +39,7 @@ These are load-bearing. Do not optimize them away.
 ## 3. Architecture
 
 ```
-iPhone 16 (press-and-hold → Voice Memos)
+iPhone (press-and-hold → Voice Memos)
         │
         │  iCloud sync (already working, no code)
         ▼
@@ -140,7 +141,13 @@ CREATE VIRTUAL TABLE entries_fts USING fts5(
 
 ## 7. Classification
 
-**Classes:** `song`, `idea`, `whtc`, `work`, `compost`
+**Classes that ship:** `song`, `idea`, `work`, `compost`
+
+The roster is not fixed. It is db-native, editable from the search page, and
+carried across a rebuild — the one deliberate exception to files-are-truth.
+This archive's own roster adds a fifth, `whtc`, for show bits, which is exactly
+the intended use: add a class the day you notice you keep filing the same kind
+of thing, and the clerk starts filing by it.
 
 `compost` is not the failure bucket. It is the default and expected home for most entries —
 the unresolved pile, which is the most interesting part of the system. Naming matters:
@@ -149,7 +156,7 @@ never call it "unsorted" in code, comments, or UI.
 **Tool surface — exactly three verbs. Do not expand.**
 
 ```python
-classify(transcript: str) -> str    # one of the five classes
+classify(transcript: str) -> str    # one of the roster's classes
 tag(transcript: str) -> list[str]   # 3-7 lowercase keywords, no invention
 route(entry_id: str, cls: str)      # writes class to meta + db
 ```
@@ -221,7 +228,7 @@ from files alone. Ship the HTML search page.
 audio in the browser. Delete `compost.db`, run `rebuild`, confirm identical results.
 
 > **This may be the whole win.** Search alone might solve the buried-good-ideas problem, because
-> the issue was never that bad ideas exist — it's that they stood between Miles and the good
+> the issue was never that bad ideas exist — it's that they stood between you and the good
 > ones. Search routes around them instead of grading them. Live with Phase 2 for at least a week
 > before building Phase 3.
 
@@ -270,6 +277,6 @@ Do not build these. They are real and they come later.
 
 ## 13. Definition of done for Rev 1
 
-Miles speaks into his phone with one press-and-hold, does nothing else, and within a few
-minutes that thought is searchable by keyword and playable on his Mac — and the pile he lands
-in when he opens the page is the one he's least likely to have gone looking for.
+You speak into your phone with one press-and-hold, do nothing else, and within a few
+minutes that thought is searchable by keyword and playable on your Mac — and the pile you land
+in when you open the page is the one you were least likely to have gone looking for.

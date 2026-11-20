@@ -12,7 +12,7 @@ the optional tagging step.
 Voice Memos (iCloud) → watch → copy → whisper.cpp → classify+tag → SQLite FTS5 → search page
 ```
 
-Written for one person's archive (460 memos, 2013–present). Published because
+Written for one person's archive, a decade-plus deep. Published because
 the problem — years of voice memos in one unsearchable list — is common enough
 that the plumbing might save someone the evening it takes to build.
 
