@@ -58,9 +58,38 @@ body {
 .mark:hover { color: #8f9f6b; }
 .mark.on { color: #8f9f6b; }
 .active-box .mark { margin-left: 0; padding-left: 0; }
+.kebab-wrap { position: relative; flex-shrink: 0; }
+.kebab {
+  font-size: 13px; color: #3a3a3a; cursor: pointer; user-select: none;
+  padding: 0 2px 0 8px; line-height: 1;
+}
+.kebab:hover, .kebab.open { color: #c8b89a; }
+.menu {
+  display: none; position: absolute; right: 0; top: 20px; z-index: 40;
+  background: #141414; border: 1px solid #333; border-radius: 2px;
+  padding: 4px 0; min-width: 190px;
+}
+.menu.open { display: block; }
+/* rows put the dots at the right edge, so the menu hangs left of them;
+   the active box puts them at the left, where it has to open the other way */
+.active-box .menu { right: auto; left: 0; }
+.menu-item {
+  display: block; padding: 6px 12px; cursor: pointer;
+  font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #7a8ab8;
+}
+.menu-item:hover { background: #1c1c1c; color: #e8d5b5; }
+.menu-item.danger { color: #b87a7a; }
+.menu-item.danger:hover { background: #1f1515; color: #d49a9a; }
+.menu-note {
+  display: block; padding: 2px 12px 6px; font-size: 9px; color: #555;
+  letter-spacing: 1px; line-height: 1.5; text-transform: none; max-width: 190px;
+}
 #results { padding: 8px 24px 60px; }
-.entry { border-bottom: 1px solid #1a1a1a; padding: 14px 0; }
-.entry .meta-row { display: flex; gap: 14px; align-items: baseline; margin-bottom: 6px; }
+.entry { border-bottom: 1px solid #333; padding: 14px 0; }
+/* the row's controls track the text column instead of the window edge —
+   on a wide screen an auto margin strands them yards from the entry */
+.entry .meta-row { display: flex; gap: 14px; align-items: baseline;
+                   margin-bottom: 6px; max-width: 900px; }
 .entry .date, .active-box .date { color: #7a8ab8; font-size: 11px; letter-spacing: 1px; }
 .entry .cls, .active-box .cls {
   font-size: 9px; color: #555; letter-spacing: 2px; text-transform: uppercase;
@@ -201,7 +230,7 @@ function entryHTML(e) {
         <span class="cls">${e.class}</span>
         ${(e.tags || '').split(',').filter(Boolean).map(t => `<span class="tag">${t}</span>`).join('')}
         <span class="dur">${fmtDur(e.duration)}</span>
-        ${markHTML(e)}
+        ${markHTML(e)}${kebabHTML(e.id)}
       </div>
       <div class="snip">${e.snip || '<span style="color:#444">(no transcript)</span>'}</div>
       <audio controls preload="none" src="/audio/${encodeURIComponent(e.audio_path.replace(/^audio\//,''))}"></audio>
@@ -254,6 +283,68 @@ function applyMark(id, on) {
   yearCache.forEach(list => list.forEach(e => { if (e.id === id) e.status = st; }));
   document.querySelectorAll(`[data-status-for="${id}"]`).forEach(el => el.textContent = st);
   if (activeEntry && activeEntry.id === id) activeEntry.status = st;
+}
+
+const removeItem = id =>
+  `<span class="menu-item danger" onclick="removeEntry('${id}', event)"
+   >remove from the pile</span>`;
+
+function kebabHTML(id) {
+  return `<span class="kebab-wrap">
+            <span class="kebab" data-kebab="${id}" onclick="toggleMenu('${id}', event)"
+                  title="more">&vellip;</span>
+            <div class="menu" data-menu="${id}">${removeItem(id)}</div>
+          </span>`;
+}
+
+function closeMenus() {
+  document.querySelectorAll('.menu.open').forEach(m => {
+    m.classList.remove('open');
+    m.innerHTML = removeItem(m.dataset.menu);
+    delete m.dataset.armed;
+  });
+  document.querySelectorAll('.kebab.open').forEach(k => k.classList.remove('open'));
+}
+
+function toggleMenu(id, ev) {
+  ev.stopPropagation();
+  const menu = ev.currentTarget.parentElement.querySelector(`[data-menu="${id}"]`);  // same wrap
+  const wasOpen = menu.classList.contains('open');
+  closeMenus();
+  if (wasOpen) return;
+  menu.classList.add('open');
+  ev.currentTarget.classList.add('open');
+}
+
+// two taps, because the first one is usually the hand being faster than the head
+async function removeEntry(id, ev) {
+  ev.stopPropagation();
+  const menu = ev.currentTarget.parentElement;
+  if (!menu.dataset.armed) {
+    menu.dataset.armed = '1';
+    menu.innerHTML = `<span class="menu-item danger" onclick="removeEntry('${id}', event)"
+                      >yes — take it out</span>
+                      <span class="menu-note">files move to compost/removed/.
+                      the voice memo itself is never touched.</span>`;
+    return;
+  }
+  const r = await fetch('/api/remove', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({id})
+  });
+  if (!r.ok) { alert(await r.text()); return; }
+  closeMenus();
+  dropEntry(id);
+}
+
+function dropEntry(id) {
+  yearCache.forEach((list, key) =>
+    yearCache.set(key, list.filter(e => e.id !== id)));
+  if (activeEntry && activeEntry.id === id) renderActive(null);
+  document.querySelectorAll(`[data-kebab="${id}"]`).forEach(k => {
+    const row = k.closest('.entry');
+    if (row) row.remove();
+  });
 }
 
 function toggleMarkFilter() {
@@ -418,7 +509,7 @@ function renderActive(e) {
     <div class="active-box">
       <div class="top">
         <span class="label">active</span>
-        ${markHTML(e)}
+        ${markHTML(e)}${kebabHTML(e.id)}
         <span class="date">${fmtDate(e.created_at)}</span>
         ${e.title ? `<span class="title">${esc(e.title)}</span>`
                   : '<span class="title none">unnamed</span>'}
@@ -456,6 +547,8 @@ async function revealActive() {
   });
   if (!r.ok) alert(await r.text());
 }
+
+document.addEventListener('click', closeMenus);
 
 q.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(search, 200); });
 search();

@@ -11,6 +11,7 @@ GET /api/entry?id=...    one entry, whole transcript, every column + tags
 GET /api/random          one entry at random (honors ?cls= like search does)
 POST /api/reveal         {"path": audio_path} — reveal that file in Finder
 POST /api/mark           {"id": ..., "mark": true|false} — flag "something here"
+POST /api/remove         {"id": ...} — take one entry out of the pile
 GET /api/classes         the class roster (name -> writeup)
 POST /api/classes        create or update a class {"name": ..., "writeup": ...}
 DELETE /api/classes/<name>  retire a class — falls forward only: already-filed
@@ -27,6 +28,7 @@ from pathlib import Path
 
 COMPOST = Path.home() / "compost"
 META = COMPOST / "meta"
+REMOVED = COMPOST / "removed"
 DB = COMPOST / "compost.db"
 STATIC = Path(__file__).parent / "static"
 PORT = 8771
@@ -78,6 +80,50 @@ def set_mark(entry_id: str, marked: bool) -> dict | None:
     except sqlite3.Error:
         pass  # db is disposable; the next rebuild picks it up from meta
     return load_entry(entry_id)
+
+
+def remove_entry(entry_id: str) -> dict | None:
+    """Take one entry out of the pile.
+
+    The files move to ~/compost/removed/ keeping their layout; they are not
+    unlinked. Two reasons, both load-bearing. Rebuild reconstructs the index
+    from files, so unlinking would leave nothing to recover from — a slip
+    would be final. And ingest derives idempotency from meta/*.json alone
+    (ingest.py:76), so a vanished meta file reads as "never processed" and
+    launchd re-ingests the original memo on its next fire. The moved meta is
+    the tombstone that stops it coming back.
+
+    Emptying ~/compost/removed/ is a deletion only the person at the keyboard
+    performs. This function never does it.
+    """
+    entry = load_entry(entry_id)
+    if entry is None:
+        return None
+    ym = f"{entry_id[:4]}/{entry_id[4:6]}"
+    targets = [COMPOST / "transcripts" / ym / f"{entry_id}.txt",
+               COMPOST / "meta" / ym / f"{entry_id}.json"]
+    if entry.get("audio_path"):
+        audio = (COMPOST / entry["audio_path"]).resolve()
+        if audio.is_relative_to((COMPOST / "audio").resolve()):
+            targets.insert(0, audio)
+    moved = []
+    for src in targets:
+        if not src.is_file():
+            continue
+        dst = REMOVED / src.relative_to(COMPOST)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        src.replace(dst)
+        moved.append(str(dst.relative_to(COMPOST)))
+    try:
+        conn = sqlite3.connect(DB)
+        conn.execute("DELETE FROM entries WHERE id = ?", (entry_id,))
+        conn.execute("DELETE FROM tags WHERE entry_id = ?", (entry_id,))
+        conn.execute("DELETE FROM entries_fts WHERE id = ?", (entry_id,))
+        conn.commit()
+        conn.close()
+    except sqlite3.Error:
+        pass  # db is disposable; the files already left, so rebuild agrees
+    return {"id": entry_id, "moved": moved}
 
 
 def load_entry(entry_id: str = "", cls: str = "", marked: bool = False):
@@ -240,18 +286,18 @@ class Handler(BaseHTTPRequestHandler):
         subprocess.run(["open", "-R", str(f)], check=False)
         self._send(200, "application/json", b'{"revealed": true}')
 
-    def _mark(self):
-        """Toggle the one bit that means there is something here. Not a rating,
-        not a tag — a third axis, so it filters on its own."""
+    def _mark(self, removing: bool = False):
+        """Mark toggles the one bit that means there is something here — not a
+        rating, not a tag, a third axis. Remove takes the entry out entirely."""
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
             entry_id = str(body.get("id", ""))
         except (json.JSONDecodeError, ValueError):
-            entry_id = ""
+            entry_id, body = "", {}
         if not ENTRY_ID_RE.match(entry_id):
             self._send(400, "text/plain", b"bad entry id")
             return
-        entry = set_mark(entry_id, bool(body.get("mark")))
+        entry = remove_entry(entry_id) if removing else set_mark(entry_id, bool(body.get("mark")))
         if entry is None:
             self._send(404, "text/plain", b"no such entry")
             return
@@ -262,8 +308,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/reveal":
             self._reveal()
             return
-        if path == "/api/mark":
-            self._mark()
+        if path in ("/api/mark", "/api/remove"):
+            self._mark(path == "/api/remove")
             return
         if path != "/api/classes":
             self._send(404, "text/plain", b"not found")

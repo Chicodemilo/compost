@@ -32,7 +32,11 @@ These are load-bearing. Do not optimize them away.
    from the folder must always be a valid recovery path.
 4. **The AI sorts. It does not have opinions.** No rewriting, summarizing, or "improving" content.
 5. **Uncertainty routes to `compost`.** An honest unsorted pile beats a confident wrong folder.
-6. **Nothing is ever deleted.** No `dead` state, no trash. Material either gets used or sits.
+6. **The system never deletes.** No expiry, no trash, no `dead` state, no removal the machine
+   decides on, and no grade that condemns an entry. Material gets used or it sits. A person may
+   take an entry out of the pile (§9) — that is a human act on their own archive, not a behavior
+   of the pipeline — and even then nothing is destroyed: the files move to `removed/` and stay
+   there, readable. Emptying that folder is a deletion no code in this repo performs.
 
 ---
 
@@ -94,6 +98,8 @@ iPhone (press-and-hold → Voice Memos)
 ├── meta/               # one .json per entry — tags, class, location, source
 │   └── 2026/09/
 │       └── 20260902-143312-a3f9.json
+├── removed/            # entries taken out of the pile — same layout, nothing destroyed
+│   └── meta/2026/09/   #   the meta file stays as ingest's tombstone (§11)
 ├── compost.db          # SQLite index — DISPOSABLE, rebuildable
 ├── logs/
 └── inbox_failed/       # anything the pipeline choked on, with error log
@@ -213,6 +219,12 @@ Single HTML file. Served locally. Not a webapp.
   is the only negative signal, and it costs nothing to leave.
 - Marking writes `status` to the entry's meta JSON first, db second. It rides a `rebuild` with
   no special-casing — unlike the class roster, the mark needs no exception to files-are-truth.
+- **`remove from the pile`** — behind a `⋮` on each row and on the active post, never a bare
+  button, and it takes two taps because the first one is usually the hand being faster than the
+  head. It moves that entry's audio, transcript, and meta into `removed/` and drops it from the
+  index. It does **not** touch the Voice Memos recording; the source stays exactly where it was.
+  Removal is the person's call on their own archive, so the page offers it and the pipeline
+  never initiates it.
 
 No deleting, no auth, no accounts. The mark is the one write the page makes to an entry, and it
 touches nothing the pipeline produced — not the transcript, not the class, not the tags.
@@ -266,6 +278,11 @@ more than rarely; the `compost` pile is large and that is correct.
   source material.
 - **Idempotency:** re-running ingest on an already-processed file must be a no-op, not a
   duplicate. launchd will fire spuriously.
+- **A removed entry must leave its meta file readable.** Idempotency comes from `meta/*.json`
+  alone, so an entry whose meta is unlinked reads as never-processed — and because removal
+  deliberately leaves the Voice Memo in place, the next WatchPaths fire re-ingests it under a
+  new id, minutes later. `removed/meta/` is scanned for exactly this reason. Anything that takes
+  entries out must leave the tombstone behind.
 
 ---
 
@@ -280,9 +297,9 @@ Do not build these. They are real and they come later.
   plus the one-time LLM pass to split the existing blob into dated entries. `source='note'`
   is already in the schema for this.
 - The ratchet: kill/keep/promote cycling. The mark (§9) spends the `status` column and is as
-  far as this goes — a flag, not a cycle. Note that with the compost framing there is **no kill
-  state** — material either gets pulled out and used or stays in and breaks down. Nothing may
-  ever be added that records a negative judgment about an entry.
+  far as this goes — a flag, not a cycle. There is still **no kill state**: removal (§9) is not
+  a state an entry sits in, it is an entry leaving. Nothing that stays in the pile may ever
+  carry a negative label, and no judgment may ever be recorded against an entry.
 - Any hosted/remote/multi-user version.
 
 ---

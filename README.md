@@ -45,7 +45,9 @@ that the plumbing might save someone the evening it takes to build.
   meaning only *there is something here*. It is a third axis, not a tag and not
   a rating: one bit, one direction, no scale and no opposite, written only by
   you and filtered on its own. It lands in the entry's meta JSON, so it
-  survives `rebuild` like everything else that matters. Class edits apply to future filing only; already-filed entries
+  survives `rebuild` like everything else that matters. A `⋮` beside it
+  removes an entry from the pile — two taps, files moved to `compost/removed/`
+  rather than unlinked, and the Voice Memos recording never touched. Class edits apply to future filing only; already-filed entries
   keep their labels. An active-post box sits above the search: `random`
   pulls one entry out of the pile (honoring whatever class chips are lit),
   clicking any entry's date promotes it, and the box holds it — whole

@@ -74,13 +74,19 @@ def resolve_recordings_dir() -> Path:
 
 
 def processed_source_files() -> set[str]:
-    """Idempotency from files alone: every meta json records its source file name."""
+    """Idempotency from files alone: every meta json records its source file name.
+
+    removed/meta counts too. An entry taken out of the pile keeps its meta
+    file as a tombstone — without it the original memo reads as new and gets
+    re-ingested on the next WatchPaths fire, so removing anything would only
+    ever be temporary."""
     seen = set()
-    for p in META.rglob("*.json"):
-        try:
-            seen.add(json.loads(p.read_text()).get("source_file", ""))
-        except (json.JSONDecodeError, OSError):
-            continue
+    for root in (META, COMPOST / "removed" / "meta"):
+        for p in root.rglob("*.json"):
+            try:
+                seen.add(json.loads(p.read_text()).get("source_file", ""))
+            except (json.JSONDecodeError, OSError):
+                continue
     return seen
 
 
