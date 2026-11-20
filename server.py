@@ -3,12 +3,14 @@
 
 GET /                    the search page
 GET /api/search?q=...    FTS5 search across all years
+                         all search routes take &mark=1 — only marked entries
 GET /api/search?year=Y   one year's entries (browse view loads years lazily)
 GET /api/search          per-year counts for the folded browse view
 GET /audio/<rel>         audio with Range support so <audio> can seek
 GET /api/entry?id=...    one entry, whole transcript, every column + tags
 GET /api/random          one entry at random (honors ?cls= like search does)
 POST /api/reveal         {"path": audio_path} — reveal that file in Finder
+POST /api/mark           {"id": ..., "mark": true|false} — flag "something here"
 GET /api/classes         the class roster (name -> writeup)
 POST /api/classes        create or update a class {"name": ..., "writeup": ...}
 DELETE /api/classes/<name>  retire a class — falls forward only: already-filed
@@ -24,10 +26,12 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
 COMPOST = Path.home() / "compost"
+META = COMPOST / "meta"
 DB = COMPOST / "compost.db"
 STATIC = Path(__file__).parent / "static"
 PORT = 8771
 CLASS_NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,23}$")
+ENTRY_ID_RE = re.compile(r"^\d{8}-\d{6}-[0-9a-f]{4}$")  # a path is built from this
 
 AUDIO_TYPES = {".m4a": "audio/mp4", ".qta": "audio/mp4", ".wav": "audio/wav"}
 
@@ -44,9 +48,41 @@ def class_filter(conn, cls: str):
     return roster, present, selected
 
 
-def load_entry(entry_id: str = "", cls: str = ""):
+def row_filter(selected: list, marked: bool) -> tuple[list, list]:
+    """Conditions for the two filters. Class and mark are different axes —
+    a marked entry keeps whatever class it wears, compost included."""
+    conds, params = [], []
+    if selected:
+        conds.append(f"e.class IN ({','.join('?' * len(selected))})")
+        params += selected
+    if marked:
+        conds.append("e.status = 'promoted'")
+    return conds, params
+
+
+def set_mark(entry_id: str, marked: bool) -> dict | None:
+    """Flip one entry's mark. Meta is truth — the json write is what survives a
+    rebuild; the db update just keeps the open page honest. Carries no opinion
+    and no scale: either there is something here or nobody has said so yet."""
+    mp = META / entry_id[:4] / entry_id[4:6] / f"{entry_id}.json"
+    if not mp.is_file():
+        return None
+    m = json.loads(mp.read_text())
+    m["status"] = "promoted" if marked else "raw"
+    mp.write_text(json.dumps(m, indent=2))
+    try:
+        conn = sqlite3.connect(DB)
+        conn.execute("UPDATE entries SET status = ? WHERE id = ?", (m["status"], entry_id))
+        conn.commit()
+        conn.close()
+    except sqlite3.Error:
+        pass  # db is disposable; the next rebuild picks it up from meta
+    return load_entry(entry_id)
+
+
+def load_entry(entry_id: str = "", cls: str = "", marked: bool = False):
     """One whole entry — full transcript, every column, tags joined.
-    No entry_id means pick at random from whatever the class filter allows."""
+    No entry_id means pick at random from whatever the filters allow."""
     conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     if entry_id:
@@ -54,20 +90,23 @@ def load_entry(entry_id: str = "", cls: str = ""):
             f"SELECT e.*, {TAGS_SUB} FROM entries e WHERE e.id = ?", (entry_id,)).fetchone()
     else:
         _, _, selected = class_filter(conn, cls)
-        where = f" WHERE e.class IN ({','.join('?' * len(selected))})" if selected else ""
+        # random is random: the filters narrow the pile, nothing weights the draw
+        conds, params = row_filter(selected, marked)
+        where = f" WHERE {' AND '.join(conds)}" if conds else ""
         row = conn.execute(
             f"SELECT e.*, {TAGS_SUB} FROM entries e{where} ORDER BY RANDOM() LIMIT 1",
-            selected).fetchone()
+            params).fetchone()
     conn.close()
     return dict(row) if row else None
 
 
-def query_db(q: str, year: str = "", cls: str = "", limit: int = 100):
+def query_db(q: str, year: str = "", cls: str = "", marked: bool = False, limit: int = 100):
     conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     out = {}
     roster, present, selected = class_filter(conn, cls)
-    cfilter = f" AND e.class IN ({','.join('?' * len(selected))})" if selected else ""
+    conds, fparams = row_filter(selected, marked)
+    cfilter = "".join(f" AND {c}" for c in conds)
     tags_sub = TAGS_SUB
     if q.strip():
         # quote each term so user input can't break FTS5 syntax
@@ -76,24 +115,20 @@ def query_db(q: str, year: str = "", cls: str = "", limit: int = 100):
             f"""SELECT e.*, snippet(entries_fts, 1, '<mark>', '</mark>', '…', 24) AS snip, {tags_sub}
                FROM entries_fts f JOIN entries e ON e.id = f.id
                WHERE entries_fts MATCH ?{cfilter} ORDER BY e.created_at DESC LIMIT ?""",
-            (match, *selected, limit)).fetchall()
+            (match, *fparams, limit)).fetchall()
         out["results"] = [dict(r) for r in rows]
     elif year:
         rows = conn.execute(
             f"SELECT e.*, substr(e.transcript, 1, 220) AS snip, {tags_sub} FROM entries e "
             f"WHERE substr(e.created_at, 1, 4) = ?{cfilter} ORDER BY e.created_at DESC",
-            (year, *selected)).fetchall()
+            (year, *fparams)).fetchall()
         out["results"] = [dict(r) for r in rows]
     else:
-        if selected:
-            # FILTER keeps zero-count years in the list — the archive's shape stays visible
-            counts = conn.execute(
-                f"SELECT substr(created_at, 1, 4), COUNT(*) FILTER (WHERE class IN "
-                f"({','.join('?' * len(selected))})) FROM entries GROUP BY 1 ORDER BY 1 DESC",
-                selected)
-        else:
-            counts = conn.execute(
-                "SELECT substr(created_at, 1, 4), COUNT(*) FROM entries GROUP BY 1 ORDER BY 1 DESC")
+        # FILTER keeps zero-count years in the list — the archive's shape stays visible
+        filt = f" FILTER (WHERE {' AND '.join(conds)})" if conds else ""
+        counts = conn.execute(
+            f"SELECT substr(e.created_at, 1, 4), COUNT(*){filt} "
+            f"FROM entries e GROUP BY 1 ORDER BY 1 DESC", fparams)
         out["years"] = [{"year": y, "count": c} for y, c in counts]
         out["classes"] = [c for c in roster if c in present] + sorted(present - set(roster))
     total = conn.execute("SELECT COUNT(*), MIN(created_at), MAX(created_at) FROM entries").fetchone()
@@ -146,12 +181,13 @@ class Handler(BaseHTTPRequestHandler):
         elif url.path == "/api/search":
             qs = urllib.parse.parse_qs(url.query)
             body = json.dumps(query_db(qs.get("q", [""])[0], qs.get("year", [""])[0],
-                                       qs.get("cls", [""])[0])).encode()
+                                       qs.get("cls", [""])[0],
+                                       qs.get("mark", [""])[0] == "1")).encode()
             self._send(200, "application/json", body)
         elif url.path in ("/api/entry", "/api/random"):
             qs = urllib.parse.parse_qs(url.query)
             entry = load_entry(qs.get("id", [""])[0] if url.path == "/api/entry" else "",
-                               qs.get("cls", [""])[0])
+                               qs.get("cls", [""])[0], qs.get("mark", [""])[0] == "1")
             if entry is None:
                 self._send(404, "text/plain", b"no such entry")
                 return
@@ -204,10 +240,30 @@ class Handler(BaseHTTPRequestHandler):
         subprocess.run(["open", "-R", str(f)], check=False)
         self._send(200, "application/json", b'{"revealed": true}')
 
+    def _mark(self):
+        """Toggle the one bit that means there is something here. Not a rating,
+        not a tag — a third axis, so it filters on its own."""
+        try:
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+            entry_id = str(body.get("id", ""))
+        except (json.JSONDecodeError, ValueError):
+            entry_id = ""
+        if not ENTRY_ID_RE.match(entry_id):
+            self._send(400, "text/plain", b"bad entry id")
+            return
+        entry = set_mark(entry_id, bool(body.get("mark")))
+        if entry is None:
+            self._send(404, "text/plain", b"no such entry")
+            return
+        self._send(200, "application/json", json.dumps(entry).encode())
+
     def do_POST(self):
         path = urllib.parse.urlparse(self.path).path
         if path == "/api/reveal":
             self._reveal()
+            return
+        if path == "/api/mark":
+            self._mark()
             return
         if path != "/api/classes":
             self._send(404, "text/plain", b"not found")

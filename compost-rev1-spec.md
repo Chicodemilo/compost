@@ -120,7 +120,7 @@ CREATE TABLE entries (
     lon         REAL,                 -- nullable
     place       TEXT,                 -- nullable, human-readable if available
     duration    REAL,                 -- seconds
-    status      TEXT DEFAULT 'raw',   -- 'raw' | 'promoted'  (ratchet is rev 2)
+    status      TEXT DEFAULT 'raw',   -- 'raw' | 'promoted'  — the mark, §9
     indexed_at  TEXT
 );
 
@@ -196,15 +196,26 @@ Single HTML file. Served locally. Not a webapp.
 
 **Requirements:**
 - Search box → FTS5 query across transcripts
-- Filter chips: class, date range
+- Filter chips: class, date range, and **the mark** — a third axis, filtered on its own
 - Results: date, class, tags, transcript snippet, inline `<audio controls>` per row
 - **Opens on `compost`, not on "all" and not on the classified folders.** Classified material is
   already findable. The unresolved pile is the only thing that benefits from being stumbled over.
-- **`surprise me` button** — pulls one random entry from `compost`, weighted toward older
-  entries. Age is a feature: something that's been sitting eight months has finished breaking
-  down. This is the cheapest possible version of the ratchet.
+- **`surprise me` button** — pulls one random entry from `compost`. Random is random: the
+  filters narrow the pile, and nothing weights the draw. No age weighting, no de-weighting what
+  has already been served, no record of what the button has shown. A rigged draw is a ranking
+  wearing a disguise, and it would quietly decide what you are allowed to stumble into.
+- **The mark** — one bit per entry meaning *there is something here*. One gesture, one
+  direction, no scale and no opposite. It is not a tag and does not compete with tags: tags say
+  what an entry is about and the clerk writes them, the mark says a human found something and
+  only a human writes it. Deliberately **not** a star rating — a scale would grade material
+  that hasn't finished breaking down, and a grade stamped today is wrong in eight months, wrong
+  with authority, because the entry it dismissed never gets shown again. The absence of the mark
+  is the only negative signal, and it costs nothing to leave.
+- Marking writes `status` to the entry's meta JSON first, db second. It rides a `rebuild` with
+  no special-casing — unlike the class roster, the mark needs no exception to files-are-truth.
 
-No editing, no deleting, no auth, no accounts.
+No deleting, no auth, no accounts. The mark is the one write the page makes to an entry, and it
+touches nothing the pipeline produced — not the transcript, not the class, not the tags.
 
 ---
 
@@ -268,9 +279,10 @@ Do not build these. They are real and they come later.
 - Apple Notes intake via AppleScript (`osascript`, `body of note ... of account "iCloud"`),
   plus the one-time LLM pass to split the existing blob into dated entries. `source='note'`
   is already in the schema for this.
-- The ratchet: kill/keep/promote cycling. `status` column is a stub. Note that with the
-  compost framing there is **no kill state** — material either gets pulled out and used or
-  stays in and breaks down.
+- The ratchet: kill/keep/promote cycling. The mark (§9) spends the `status` column and is as
+  far as this goes — a flag, not a cycle. Note that with the compost framing there is **no kill
+  state** — material either gets pulled out and used or stays in and breaks down. Nothing may
+  ever be added that records a negative judgment about an entry.
 - Any hosted/remote/multi-user version.
 
 ---

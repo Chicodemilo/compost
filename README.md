@@ -41,7 +41,11 @@ that the plumbing might save someone the evening it takes to build.
 - `server.py` — stdlib-only server on `localhost:8771`. Full-text search
   (porter-stemmed), a year-by-year collapsible browse view, class filter
   chips, inline audio playback with seeking, and a panel for editing the
-  class list. Class edits apply to future filing only; already-filed entries
+  class list. Every row carries a mark — `[ ]` until you flag it, `[•]` after —
+  meaning only *there is something here*. It is a third axis, not a tag and not
+  a rating: one bit, one direction, no scale and no opposite, written only by
+  you and filtered on its own. It lands in the entry's meta JSON, so it
+  survives `rebuild` like everything else that matters. Class edits apply to future filing only; already-filed entries
   keep their labels. An active-post box sits above the search: `random`
   pulls one entry out of the pile (honoring whatever class chips are lit),
   clicking any entry's date promotes it, and the box holds it — whole

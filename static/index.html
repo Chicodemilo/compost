@@ -37,7 +37,9 @@ body {
 }
 .searchbar input:focus { border-color: #c8b89a; }
 .searchbar input::placeholder { color: #555; }
-#class-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+#filters { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+#class-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+#mark-filter { padding-left: 16px; border-left: 1px solid #1f1f1f; }
 .chip {
   font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
   color: #555; border: 1px solid #2a2a2a; border-radius: 2px;
@@ -45,6 +47,17 @@ body {
 }
 .chip:hover { color: #c8b89a; border-color: #3a3a3a; }
 .chip.active { background: #c8b89a; color: #0a0a0a; border-color: #c8b89a; }
+.chip.mark-chip { color: #6b7a52; border-color: #262c1e; }
+.chip.mark-chip:hover { color: #8f9f6b; border-color: #3a442c; }
+.chip.mark-chip.active { background: #8f9f6b; color: #0a0a0a; border-color: #8f9f6b; }
+/* the mark: one bit, one axis. a flag that something is here, not a grade */
+.mark {
+  font-size: 11px; color: #3a3a3a; cursor: pointer; user-select: none;
+  letter-spacing: 0; margin-left: auto; padding-left: 10px; flex-shrink: 0;
+}
+.mark:hover { color: #8f9f6b; }
+.mark.on { color: #8f9f6b; }
+.active-box .mark { margin-left: 0; padding-left: 0; }
 #results { padding: 8px 24px 60px; }
 .entry { border-bottom: 1px solid #1a1a1a; padding: 14px 0; }
 .entry .meta-row { display: flex; gap: 14px; align-items: baseline; margin-bottom: 6px; }
@@ -154,7 +167,13 @@ body {
 <div id="active"></div>
 <div class="searchbar">
   <input id="q" type="search" placeholder="search the pile…" autofocus autocomplete="off">
-  <div id="class-chips"></div>
+  <div id="filters">
+    <div id="class-chips"></div>
+    <div id="mark-filter">
+      <span class="chip mark-chip" id="mark-chip" onclick="toggleMarkFilter()"
+            title="only entries flagged as having something in them">something here</span>
+    </div>
+  </div>
 </div>
 <div id="results"></div>
 <script>
@@ -182,6 +201,7 @@ function entryHTML(e) {
         <span class="cls">${e.class}</span>
         ${(e.tags || '').split(',').filter(Boolean).map(t => `<span class="tag">${t}</span>`).join('')}
         <span class="dur">${fmtDur(e.duration)}</span>
+        ${markHTML(e)}
       </div>
       <div class="snip">${e.snip || '<span style="color:#444">(no transcript)</span>'}</div>
       <audio controls preload="none" src="/audio/${encodeURIComponent(e.audio_path.replace(/^audio\//,''))}"></audio>
@@ -195,9 +215,52 @@ function setStats(data) {
 const expanded = new Set();       // survives search-and-clear
 const yearCache = new Map();      // "year|filter" -> entries, fetched once
 const activeCls = new Set();      // class filter; empty = no filter
+let markOn = false;               // the other axis, filtered on its own
 const chipRow = document.getElementById('class-chips');
+const markChip = document.getElementById('mark-chip');
 
 const clsParam = () => [...activeCls].join(',');
+const filterParams = () => `cls=${clsParam()}&mark=${markOn ? 1 : 0}`;
+const cacheKey = year => `${year}|${clsParam()}|${markOn ? 1 : 0}`;
+
+function markHTML(e) {
+  const on = e.status === 'promoted';
+  return `<span class="mark${on ? ' on' : ''}" data-id="${e.id}"
+                onclick="toggleMark('${e.id}', event)"
+                title="${on ? 'there is something here' : 'flag: something here'}"
+          >${on ? '[&bull;]' : '[&nbsp;]'}</span>`;
+}
+
+async function toggleMark(id, ev) {
+  ev.stopPropagation();
+  const on = ev.currentTarget.classList.contains('on');
+  const r = await fetch('/api/mark', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({id, mark: !on})
+  });
+  if (!r.ok) { alert(await r.text()); return; }
+  applyMark(id, (await r.json()).status === 'promoted');
+}
+
+// patch in place rather than re-render: a re-render would restart the audio,
+// and an unmarked row shouldn't vanish out from under the cursor
+function applyMark(id, on) {
+  document.querySelectorAll(`.mark[data-id="${id}"]`).forEach(el => {
+    el.classList.toggle('on', on);
+    el.innerHTML = on ? '[&bull;]' : '[&nbsp;]';
+    el.title = on ? 'there is something here' : 'flag: something here';
+  });
+  const st = on ? 'promoted' : 'raw';
+  yearCache.forEach(list => list.forEach(e => { if (e.id === id) e.status = st; }));
+  document.querySelectorAll(`[data-status-for="${id}"]`).forEach(el => el.textContent = st);
+  if (activeEntry && activeEntry.id === id) activeEntry.status = st;
+}
+
+function toggleMarkFilter() {
+  markOn = !markOn;
+  markChip.classList.toggle('active', markOn);
+  search();
+}
 
 function renderChips(classes) {
   chipRow.innerHTML = classes.map(c =>
@@ -214,7 +277,7 @@ function toggleCls(c) {
 
 async function search() {
   if (!q.value.trim()) return showYears();
-  const r = await fetch(`/api/search?q=${encodeURIComponent(q.value)}&cls=${clsParam()}`);
+  const r = await fetch(`/api/search?q=${encodeURIComponent(q.value)}&${filterParams()}`);
   const data = await r.json();
   if (!q.value.trim()) return;    // box was cleared while fetching
   setStats(data);
@@ -224,7 +287,7 @@ async function search() {
 }
 
 async function showYears() {
-  const r = await fetch('/api/search?cls=' + clsParam());
+  const r = await fetch('/api/search?' + filterParams());
   const data = await r.json();
   if (q.value.trim()) return;     // user started typing while fetching
   setStats(data);
@@ -243,10 +306,10 @@ async function renderYear(year) {
   const body = document.getElementById('yr-' + year);
   if (!body) return;
   body.previousElementSibling.querySelector('.arrow').innerHTML = '&#9662;';
-  const key = year + '|' + clsParam();
+  const key = cacheKey(year);
   if (!yearCache.has(key)) {
     body.innerHTML = '<div class="loading">digging…</div>';
-    const r = await fetch(`/api/search?year=${year}&cls=${clsParam()}`);
+    const r = await fetch(`/api/search?year=${year}&${filterParams()}`);
     yearCache.set(key, (await r.json()).results);
   }
   if (!expanded.has(year)) return;  // collapsed again while fetching
@@ -330,7 +393,7 @@ function deetRows(e) {
   const rows = [
     ['id', esc(e.id)],
     ['source', esc(e.source)],
-    ['status', esc(e.status)],
+    ['status', `<span data-status-for="${esc(e.id)}">${esc(e.status)}</span>`],
     ['indexed', esc(fmtDate(e.indexed_at))],
     ['length', `${nfmt(words(e.transcript))} words · ${nfmt((e.transcript || '').length)} chars`],
     ['file', `<span class="pathlink" onclick="revealActive()"
@@ -355,6 +418,7 @@ function renderActive(e) {
     <div class="active-box">
       <div class="top">
         <span class="label">active</span>
+        ${markHTML(e)}
         <span class="date">${fmtDate(e.created_at)}</span>
         ${e.title ? `<span class="title">${esc(e.title)}</span>`
                   : '<span class="title none">unnamed</span>'}
@@ -378,7 +442,7 @@ async function setActive(id) {
 }
 
 async function randomPost() {
-  const r = await fetch('/api/random?cls=' + clsParam());
+  const r = await fetch('/api/random?' + filterParams());
   if (!r.ok) return;
   renderActive(await r.json());
   window.scrollTo({top: 0, behavior: 'smooth'});
