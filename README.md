@@ -55,6 +55,13 @@ that the plumbing might save someone the evening it takes to build.
   clicking any entry's date promotes it, and the box holds it — whole
   transcript untruncated in a scrollable pane, every column the schema
   carries, and a clickable audio path that reveals the file in Finder.
+  The active post also carries a **draft** — a self-saving text box where you
+  work an idea out. It sits beside the transcript and never overwrites it: the
+  transcript is what the machine heard, the draft is what you made of it, and
+  only keeping them apart lets you re-transcribe later without losing your
+  thinking. Drafts are plain `.md` files under `drafts/`, indexed alongside
+  transcripts so search finds your writing too. No revision history — if you
+  want it, `git init ~/compost` with `audio/` ignored costs nothing.
 - `static/index.html` — the page. One file, vanilla JS, no build step.
 
 Everything lands in `~/compost/` — audio, transcripts, meta, index, logs.

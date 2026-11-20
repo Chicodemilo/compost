@@ -30,7 +30,9 @@ These are load-bearing. Do not optimize them away.
    downstream, by machine.
 3. **Files are the source of truth. The database is an index.** Deleting the DB and rebuilding it
    from the folder must always be a valid recovery path.
-4. **The AI sorts. It does not have opinions.** No rewriting, summarizing, or "improving" content.
+4. **The AI sorts. It does not have opinions.** No rewriting, summarizing, or "improving"
+   content. The reader may write as much as they like — in the draft (§9), which is a separate
+   field. Machine output and human output never share a box.
 5. **Uncertainty routes to `compost`.** An honest unsorted pile beats a confident wrong folder.
 6. **Nothing is ever deleted.** No `dead` state, no trash, no expiry, no grade that condemns
    an entry. Material either gets used or sits. A person may put an entry **out of view** (§9),
@@ -91,9 +93,12 @@ iPhone (press-and-hold → Voice Memos)
 ├── audio/              # copies of source audio, never modified
 │   └── 2026/09/
 │       └── 20260902-143312-a3f9.m4a
-├── transcripts/        # one .txt per entry, same stem as audio
+├── transcripts/        # one .txt per entry, same stem as audio — machine output
 │   └── 2026/09/
 │       └── 20260902-143312-a3f9.txt
+├── drafts/             # one .md per entry — the reader's own writing (§9)
+│   └── 2026/09/        #   absent until you write something
+│       └── 20260902-143312-a3f9.md
 ├── meta/               # one .json per entry — tags, class, location, source
 │   └── 2026/09/
 │       └── 20260902-143312-a3f9.json
@@ -118,6 +123,7 @@ CREATE TABLE entries (
     source      TEXT NOT NULL,        -- 'vm' | 'note'  (note = rev 2)
     class       TEXT NOT NULL,        -- see §7
     transcript  TEXT,                 -- may be empty or garbled — that is OK
+    draft       TEXT,                 -- the reader's writing, never the machine's, §9
     audio_path  TEXT,                 -- relative to ~/compost/
     lat         REAL,                 -- nullable
     lon         REAL,                 -- nullable
@@ -218,6 +224,18 @@ Single HTML file. Served locally. Not a webapp.
   is the only negative signal, and it costs nothing to leave.
 - Marking writes `status` to the entry's meta JSON first, db second. It rides a `rebuild` with
   no special-casing — unlike the class roster, the mark needs no exception to files-are-truth.
+- **The draft** — a text box on the active post where you work an idea out. It saves itself:
+  debounced while typing, flushed on blur and on anything that tears the box down. A note you
+  have to remember to save is a note you lose.
+- The draft is a **sibling of the transcript, never a replacement.** The transcript is what the
+  machine heard; the draft is what you made of it. Keeping them apart is what lets you
+  re-transcribe with a better model later without destroying your thinking, and what lets you
+  always tell what you actually said from what you decided afterwards you meant. **The page
+  never edits the transcript.** Both are indexed, so search covers your writing too and the
+  snippet highlights whichever one matched.
+- **No revision history.** It would be real machinery for a personal archive, and the design
+  already answers it: drafts are plain files, so `git init ~/compost` with `audio/` ignored
+  buys real history for zero code.
 - **Hidden** — `[x]` beside the mark, in dark orange: the one control that takes something
   away must not wear the mark's green or the tags' blue. **One click, and it goes.** No confirm
   step: it sets a flag and **moves nothing** — audio, transcript and meta stay put — so there is

@@ -161,6 +161,28 @@ body {
   max-height: 340px; overflow-y: auto; line-height: 1.7; white-space: pre-wrap;
   border-top: 1px solid #1a1a1a; padding-top: 12px; color: #c8b89a;
 }
+.draft-head {
+  display: flex; align-items: baseline; gap: 12px;
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid #1a1a1a;
+}
+.draft-head .lbl {
+  font-family: 'Special Elite', cursive; font-size: 12px; color: #e8d5b5;
+  letter-spacing: 3px; text-transform: uppercase;
+}
+.draft-head .hint { font-size: 9px; color: #444; letter-spacing: 1px; }
+.draft-head .state { margin-left: auto; font-size: 9px; color: #555; letter-spacing: 2px;
+                     text-transform: uppercase; }
+.draft-head .state.saving { color: #7a8ab8; }
+.draft-head .state.saved { color: #8f9f6b; }
+.draft-head .state.failed { color: #b87a7a; }
+textarea.draft {
+  width: 100%; margin-top: 8px; min-height: 90px; resize: vertical;
+  background: #111; border: 1px solid #2a2a2a; border-radius: 2px;
+  color: #e8d5b5; font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+  line-height: 1.7; padding: 10px 12px; outline: none;
+}
+textarea.draft:focus { border-color: #c8b89a; }
+textarea.draft::placeholder { color: #3a3a3a; }
 .entry .title, .active-box .title { color: #e8d5b5; font-size: 12px; letter-spacing: 1px; }
 .entry .title.none, .active-box .title.none { color: #3a3a3a; font-style: italic; letter-spacing: 0; }
 .entry .date.pick { cursor: pointer; }
@@ -480,7 +502,9 @@ function deetRows(e) {
 }
 
 function renderActive(e) {
+  flushDraft();        // the box is about to be replaced — don't let a pending save die with it
   activeEntry = e;
+  draftSaved = e ? (e.draft || '') : null;
   if (!e) {
     activeWrap.classList.remove('open');
     activeWrap.innerHTML = '';
@@ -505,8 +529,63 @@ function renderActive(e) {
       <audio controls preload="none"
              src="/audio/${encodeURIComponent(e.audio_path.replace(/^audio\//, ''))}"></audio>
       <div class="full">${esc(e.transcript) || '<span style="color:#444">(no transcript)</span>'}</div>
+      <div class="draft-head">
+        <span class="lbl">draft</span>
+        <span class="hint">yours — the transcript above stays as recorded</span>
+        <span class="state" id="draft-state"></span>
+      </div>
+      <textarea class="draft" id="draft-box" spellcheck="true"
+                placeholder="work it out here…">${esc(e.draft || '')}</textarea>
     </div>`;
+  const box = document.getElementById('draft-box');
+  box.addEventListener('input', () => {
+    draftState('');
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(() => saveDraft(e.id, box.value), 800);
+  });
+  box.addEventListener('blur', () => {
+    clearTimeout(draftTimer);
+    saveDraft(e.id, box.value);
+  });
   activeWrap.classList.add('open');
+}
+
+// the draft saves itself: a note you have to remember to save is a note you
+// lose. debounced while typing, flushed the moment focus leaves.
+let draftTimer = null, draftSaved = null;
+
+function draftState(cls, text) {
+  const el = document.getElementById('draft-state');
+  if (!el) return;
+  el.className = 'state ' + cls;
+  el.textContent = text || '';
+}
+
+// anything that destroys the textarea has to flush first. removing a focused
+// element does not reliably fire blur, so the debounce alone would drop the
+// last thing typed before clearing or switching the active post.
+function flushDraft() {
+  clearTimeout(draftTimer);
+  const box = document.getElementById('draft-box');
+  if (box && activeEntry) saveDraft(activeEntry.id, box.value);
+}
+
+async function saveDraft(id, text) {
+  if (text === draftSaved) return;        // nothing changed since the last write
+  draftState('saving', 'saving…');
+  try {
+    const r = await fetch('/api/draft', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id, text})
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const e = await r.json();
+    draftSaved = text;
+    if (activeEntry && activeEntry.id === id) activeEntry.draft = e.draft;
+    draftState('saved', 'saved ' + new Date().toTimeString().slice(0, 5));
+  } catch (err) {
+    draftState('failed', 'not saved');
+  }
 }
 
 async function setActive(id) {
@@ -530,6 +609,15 @@ async function revealActive() {
   });
   if (!r.ok) alert(await r.text());
 }
+
+// closing the tab mid-sentence: a normal fetch gets cancelled, a beacon does not
+window.addEventListener('pagehide', () => {
+  clearTimeout(draftTimer);
+  const box = document.getElementById('draft-box');
+  if (!box || !activeEntry || box.value === draftSaved) return;
+  navigator.sendBeacon('/api/draft', new Blob(
+    [JSON.stringify({id: activeEntry.id, text: box.value})], {type: 'application/json'}));
+});
 
 q.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(search, 200); });
 search();

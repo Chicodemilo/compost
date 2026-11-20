@@ -13,6 +13,7 @@ GET /api/random          one entry at random (honors ?cls= like search does)
 POST /api/reveal         {"path": audio_path} — reveal that file in Finder
 POST /api/mark           {"id": ..., "mark": true|false} — flag "something here"
 POST /api/hide           {"id": ..., "hide": true|false} — out of view, or back
+POST /api/draft          {"id": ..., "text": ...} — the reader's own writing
 GET /api/classes         the class roster (name -> writeup)
 POST /api/classes        create or update a class {"name": ..., "writeup": ...}
 DELETE /api/classes/<name>  retire a class — falls forward only: already-filed
@@ -29,6 +30,7 @@ from pathlib import Path
 
 COMPOST = Path.home() / "compost"
 META = COMPOST / "meta"
+DRAFTS = COMPOST / "drafts"
 DB = COMPOST / "compost.db"
 STATIC = Path(__file__).parent / "static"
 PORT = 8771
@@ -68,7 +70,41 @@ def row_filter(selected: list, marked: bool, hidden: bool = False) -> tuple[list
     return conds, params
 
 
-FLAGS = {"status", "hidden"}   # the only columns the page may write
+FLAGS = {"status", "hidden"}   # the only flag columns the page may write
+MAX_DRAFT = 200_000            # a draft is a note, not an upload
+
+
+def set_draft(entry_id: str, text: str) -> dict | None:
+    """Save the reader's own writing for one entry.
+
+    It lives in drafts/<id>.md, a sibling of the transcript, and never touches
+    it. The transcript is what the machine heard; the draft is what you made
+    of it, and keeping them apart is what lets you re-transcribe later without
+    destroying your thinking — and what lets you still tell what you actually
+    said from what you decided afterwards you meant.
+    """
+    if not (META / entry_id[:4] / entry_id[4:6] / f"{entry_id}.json").is_file():
+        return None
+    text = text.strip()
+    dp = DRAFTS / entry_id[:4] / entry_id[4:6] / f"{entry_id}.md"
+    if text:
+        dp.parent.mkdir(parents=True, exist_ok=True)
+        dp.write_text(text)
+    elif dp.is_file():
+        dp.unlink()   # cleared by hand: don't leave an empty file behind
+    try:
+        conn = sqlite3.connect(DB)
+        conn.execute("UPDATE entries SET draft = ? WHERE id = ?", (text, entry_id))
+        row = conn.execute(
+            "SELECT transcript, title FROM entries WHERE id = ?", (entry_id,)).fetchone()
+        conn.execute("DELETE FROM entries_fts WHERE id = ?", (entry_id,))
+        conn.execute("INSERT INTO entries_fts (id, transcript, title, draft) VALUES (?,?,?,?)",
+                     (entry_id, row[0] or "", row[1] or "", text))
+        conn.commit()
+        conn.close()
+    except sqlite3.Error:
+        pass  # db is disposable; the file is written, so rebuild agrees
+    return load_entry(entry_id)
 
 
 def set_flag(entry_id: str, field: str, value) -> dict | None:
@@ -132,14 +168,15 @@ def query_db(q: str, year: str = "", cls: str = "", marked: bool = False,
         # quote each term so user input can't break FTS5 syntax
         match = " ".join(f'"{t}"' for t in re.findall(r"[^\s\"]+", q))
         rows = conn.execute(
-            f"""SELECT e.*, snippet(entries_fts, 1, '<mark>', '</mark>', '…', 24) AS snip, {tags_sub}
+            f"""SELECT e.*, snippet(entries_fts, -1, '<mark>', '</mark>', '…', 24) AS snip, {tags_sub}
                FROM entries_fts f JOIN entries e ON e.id = f.id
                WHERE entries_fts MATCH ?{cfilter} ORDER BY e.created_at DESC LIMIT ?""",
             (match, *fparams, limit)).fetchall()
         out["results"] = [dict(r) for r in rows]
     elif year:
         rows = conn.execute(
-            f"SELECT e.*, substr(e.transcript, 1, 220) AS snip, {tags_sub} FROM entries e "
+            f"SELECT e.*, substr(COALESCE(NULLIF(e.transcript, ''), e.draft, ''), 1, 220) AS snip,"
+            f" {tags_sub} FROM entries e "
             f"WHERE substr(e.created_at, 1, 4) = ?{cfilter} ORDER BY e.created_at DESC",
             (year, *fparams)).fetchall()
         out["results"] = [dict(r) for r in rows]
@@ -264,9 +301,11 @@ class Handler(BaseHTTPRequestHandler):
         subprocess.run(["open", "-R", str(f)], check=False)
         self._send(200, "application/json", b'{"revealed": true}')
 
-    def _flag(self, hiding: bool = False):
-        """Mark says there is something here. Hidden says keep it out of my
-        view. Two axes, both the reader's, neither destroying anything."""
+    def _flag(self, path: str):
+        """Everything the page may write to an entry. Mark says there is
+        something here, hidden says keep it out of my view, draft is the
+        reader's own writing. None of the three touches what the pipeline
+        produced — not the transcript, not the class, not the tags."""
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
             entry_id = str(body.get("id", ""))
@@ -275,7 +314,13 @@ class Handler(BaseHTTPRequestHandler):
         if not ENTRY_ID_RE.match(entry_id):
             self._send(400, "text/plain", b"bad entry id")
             return
-        if hiding:
+        if path == "/api/draft":
+            text = body.get("text", "")
+            if not isinstance(text, str) or len(text) > MAX_DRAFT:
+                self._send(400, "text/plain", b"draft must be text under 200k")
+                return
+            entry = set_draft(entry_id, text)
+        elif path == "/api/hide":
             entry = set_flag(entry_id, "hidden", 1 if body.get("hide") else 0)
         else:
             entry = set_flag(entry_id, "status",
@@ -290,8 +335,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/reveal":
             self._reveal()
             return
-        if path in ("/api/mark", "/api/hide"):
-            self._flag(path == "/api/hide")
+        if path in ("/api/mark", "/api/hide", "/api/draft"):
+            self._flag(path)
             return
         if path != "/api/classes":
             self._send(404, "text/plain", b"not found")

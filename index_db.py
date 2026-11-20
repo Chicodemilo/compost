@@ -36,6 +36,7 @@ CREATE TABLE entries (
     title       TEXT,
     class       TEXT NOT NULL,
     transcript  TEXT,
+    draft       TEXT,
     audio_path  TEXT,
     lat         REAL,
     lon         REAL,
@@ -50,9 +51,9 @@ CREATE TABLE tags (
     tag         TEXT NOT NULL,
     PRIMARY KEY (entry_id, tag)
 );
--- transcript stays column 1: server.py's snippet() addresses it by index
+-- draft goes last: transcript stays column 1 for anything addressing it by index
 CREATE VIRTUAL TABLE entries_fts USING fts5(
-    id UNINDEXED, transcript, title, tokenize='porter'
+    id UNINDEXED, transcript, title, draft, tokenize='porter'
 );
 CREATE TABLE classes (
     name        TEXT PRIMARY KEY,
@@ -74,19 +75,24 @@ def rebuild() -> int:
             m = json.loads(mp.read_text())
         except (json.JSONDecodeError, OSError):
             continue
-        tp = COMPOST / "transcripts" / mp.relative_to(COMPOST / "meta").with_suffix(".txt")
+        stem = mp.relative_to(COMPOST / "meta")
+        tp = COMPOST / "transcripts" / stem.with_suffix(".txt")
         transcript = tp.read_text().strip() if tp.exists() else ""
+        # the draft is the reader's own writing, kept beside the transcript and
+        # never merged into it — see §9. Same stem, so it rebuilds like the rest.
+        dp = COMPOST / "drafts" / stem.with_suffix(".md")
+        draft = dp.read_text().strip() if dp.exists() else ""
         conn.execute(
             "INSERT OR REPLACE INTO entries (id, created_at, source, title, class, transcript,"
-            " audio_path, lat, lon, place, duration, status, hidden, indexed_at)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " draft, audio_path, lat, lon, place, duration, status, hidden, indexed_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (m["id"], m["created_at"], m.get("source", "vm"), m.get("title"),
-             m.get("class", "compost"), transcript, m.get("audio_path"), m.get("lat"),
+             m.get("class", "compost"), transcript, draft, m.get("audio_path"), m.get("lat"),
              m.get("lon"), m.get("place"), m.get("duration"), m.get("status", "raw"),
              int(m.get("hidden") or 0), now),
         )
-        conn.execute("INSERT INTO entries_fts (id, transcript, title) VALUES (?,?,?)",
-                     (m["id"], transcript, m.get("title") or ""))
+        conn.execute("INSERT INTO entries_fts (id, transcript, title, draft) VALUES (?,?,?,?)",
+                     (m["id"], transcript, m.get("title") or "", draft))
         for t in m.get("tags", []):
             conn.execute("INSERT OR IGNORE INTO tags VALUES (?,?)", (m["id"], t))
         n += 1
