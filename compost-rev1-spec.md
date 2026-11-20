@@ -219,10 +219,10 @@ Single HTML file. Served locally. Not a webapp.
 - Marking writes `status` to the entry's meta JSON first, db second. It rides a `rebuild` with
   no special-casing — unlike the class roster, the mark needs no exception to files-are-truth.
 - **Hidden** — `[x]` beside the mark, in dark orange: the one control that takes something
-  away must not wear the mark's green or the tags' blue. Two taps, because the first is usually
-  the hand being faster than the head; armed it goes bright, and left alone four seconds it
-  stands back down. It sets a flag and **moves nothing** — audio, transcript and meta stay put,
-  so this costs one boolean and is undone with one click.
+  away must not wear the mark's green or the tags' blue. **One click, and it goes.** No confirm
+  step: it sets a flag and **moves nothing** — audio, transcript and meta stay put — so there is
+  nothing to be careful about and the undo is one tap away. Ceremony belongs in front of
+  irreversible acts, and this is not one.
 - A hidden entry leaves the pile completely: out of search, out of the year counts, out of the
   header total, and never drawn by `surprise me`. "Out of view" has to mean out of view, or the
   pile stops being trustworthy as the thing you are looking at.

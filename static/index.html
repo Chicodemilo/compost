@@ -66,7 +66,6 @@ body {
    the one control here that takes something away should not look like the
    two that only describe */
 .del:hover { color: #c2802e; }
-.del.armed { color: #e09a4a; background: #2a1a0e; border-radius: 2px; }
 .del.back { color: #4a5a38; }
 .del.back:hover { color: #8f9f6b; }
 .active-box .mark { margin-left: 0; padding-left: 0; }
@@ -290,34 +289,16 @@ function delHTML(e) {
                 title="${hid ? BACK_TITLE : DEL_TITLE}">${hid ? '[+]' : '[x]'}</span>`;
 }
 
-let disarmTimer = null;
-function disarmAll() {
-  clearTimeout(disarmTimer);
-  document.querySelectorAll('.del.armed').forEach(d => {
-    d.classList.remove('armed');
-    d.title = DEL_TITLE;
-  });
-}
-
-// hiding asks twice — the first tap is usually the hand being faster than the
-// head. putting one back does not: it adds something to the view, so a misfire
-// costs a click, not a thought you meant to keep.
+// one click, both directions. this used to ask twice, from when [x] meant
+// delete — but hiding moves nothing and the hidden chip puts it back in a
+// tap, so a confirm step was just ceremony in front of a reversible act.
 async function hideEntry(id, hide, ev) {
   ev.stopPropagation();
-  const el = ev.currentTarget;
-  if (hide && !el.classList.contains('armed')) {
-    disarmAll();
-    el.classList.add('armed');
-    el.title = 'click again to put it out of view';
-    disarmTimer = setTimeout(disarmAll, 4000);  // an armed button left alone stands down
-    return;
-  }
   const r = await fetch('/api/hide', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({id, hide})
   });
   if (!r.ok) { alert(await r.text()); return; }
-  disarmAll();
   dropEntry(id);   // it left whichever view you are in — the live one or the hidden one
 }
 
@@ -549,8 +530,6 @@ async function revealActive() {
   });
   if (!r.ok) alert(await r.text());
 }
-
-document.addEventListener('click', disarmAll);
 
 q.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(search, 200); });
 search();

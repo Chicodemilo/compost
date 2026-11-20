@@ -46,7 +46,7 @@ that the plumbing might save someone the evening it takes to build.
   a rating: one bit, one direction, no scale and no opposite, written only by
   you and filtered on its own. It lands in the entry's meta JSON, so it
   survives `rebuild` like everything else that matters. A dark-orange `[x]`
-  beside it puts an entry out of view — two taps, and it leaves the pile
+  beside it puts an entry out of view in one click, and it leaves the pile
   entirely: out of search, out of the year counts, out of the header total,
   never drawn by `random`. Nothing moves on disk and nothing is deleted; the
   `hidden` chip shows that pile, where `[+]` puts an entry back in one tap. Class edits apply to future filing only; already-filed entries
