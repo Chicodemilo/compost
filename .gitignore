@@ -2,5 +2,6 @@ __pycache__/
 .DS_Store
 
 # this machine's live agent plists and private ops notes — not part of the public repo
-com.miles.*.plist
+# (rendered plists are machine-specific; only the templates belong in git)
+com.*.plist
 NOTES.local.md
