@@ -219,12 +219,13 @@ Single HTML file. Served locally. Not a webapp.
   is the only negative signal, and it costs nothing to leave.
 - Marking writes `status` to the entry's meta JSON first, db second. It rides a `rebuild` with
   no special-casing — unlike the class roster, the mark needs no exception to files-are-truth.
-- **`remove from the pile`** — behind a `⋮` on each row and on the active post, never a bare
-  button, and it takes two taps because the first one is usually the hand being faster than the
-  head. It moves that entry's audio, transcript, and meta into `removed/` and drops it from the
-  index. It does **not** touch the Voice Memos recording; the source stays exactly where it was.
-  Removal is the person's call on their own archive, so the page offers it and the pipeline
-  never initiates it.
+- **Remove** — `[x]` sitting beside the mark, in dark orange: the one control that takes
+  something away must not wear the mark's green or the tags' blue. Two taps, because the first
+  one is usually the hand being faster than the head; armed it goes bright, and left alone four
+  seconds it stands back down. It moves that entry's audio, transcript, and meta into `removed/`
+  and drops it from the index. It does **not** touch the Voice Memos recording; the source stays
+  exactly where it was. Removal is the person's call on their own archive, so the page offers it
+  and the pipeline never initiates it.
 
 No deleting, no auth, no accounts. The mark is the one write the page makes to an entry, and it
 touches nothing the pipeline produced — not the transcript, not the class, not the tags.
