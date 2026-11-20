@@ -39,7 +39,7 @@ body {
 .searchbar input::placeholder { color: #555; }
 #filters { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
 #class-chips { display: flex; gap: 8px; flex-wrap: wrap; }
-#mark-filter { padding-left: 16px; border-left: 1px solid #1f1f1f; }
+#mark-filter, #hidden-filter { padding-left: 16px; border-left: 1px solid #1f1f1f; }
 .chip {
   font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
   color: #555; border: 1px solid #2a2a2a; border-radius: 2px;
@@ -50,6 +50,9 @@ body {
 .chip.mark-chip { color: #6b7a52; border-color: #262c1e; }
 .chip.mark-chip:hover { color: #8f9f6b; border-color: #3a442c; }
 .chip.mark-chip.active { background: #8f9f6b; color: #0a0a0a; border-color: #8f9f6b; }
+.chip.hidden-chip { color: #6b4a28; border-color: #2c2218; }
+.chip.hidden-chip:hover { color: #b8753a; border-color: #44341f; }
+.chip.hidden-chip.active { background: #b8753a; color: #0a0a0a; border-color: #b8753a; }
 /* the mark: one bit, one axis. a flag that something is here, not a grade */
 .mark, .del {
   font-size: 14px; color: #3a3a3a; cursor: pointer; user-select: none;
@@ -64,6 +67,8 @@ body {
    two that only describe */
 .del:hover { color: #c2802e; }
 .del.armed { color: #e09a4a; background: #2a1a0e; border-radius: 2px; }
+.del.back { color: #4a5a38; }
+.del.back:hover { color: #8f9f6b; }
 .active-box .mark { margin-left: 0; padding-left: 0; }
 #results { padding: 8px 24px 60px; }
 .entry { border-bottom: 1px solid #333; padding: 14px 0; }
@@ -183,6 +188,10 @@ body {
       <span class="chip mark-chip" id="mark-chip" onclick="toggleMarkFilter()"
             title="only entries flagged as having something in them">something here</span>
     </div>
+    <div id="hidden-filter">
+      <span class="chip hidden-chip" id="hidden-chip" onclick="toggleHiddenFilter()"
+            title="the entries you put out of view — nothing was deleted">hidden</span>
+    </div>
   </div>
 </div>
 <div id="results"></div>
@@ -211,14 +220,16 @@ function entryHTML(e) {
         <span class="cls">${e.class}</span>
         ${(e.tags || '').split(',').filter(Boolean).map(t => `<span class="tag">${t}</span>`).join('')}
         <span class="dur">${fmtDur(e.duration)}</span>
-        ${markHTML(e)}${delHTML(e.id)}
+        ${markHTML(e)}${delHTML(e)}
       </div>
       <div class="snip">${e.snip || '<span style="color:#444">(no transcript)</span>'}</div>
       <audio controls preload="none" src="/audio/${encodeURIComponent(e.audio_path.replace(/^audio\//,''))}"></audio>
     </div>`;
 }
 
+let statsData = null;
 function setStats(data) {
+  statsData = data;
   stats.textContent = `${data.total} entries · ${(data.oldest||'').slice(0,4)}–${(data.newest||'').slice(0,4)}`;
 }
 
@@ -226,12 +237,15 @@ const expanded = new Set();       // survives search-and-clear
 const yearCache = new Map();      // "year|filter" -> entries, fetched once
 const activeCls = new Set();      // class filter; empty = no filter
 let markOn = false;               // the other axis, filtered on its own
+let hiddenOn = false;             // showing the hidden pile instead of the live one
 const chipRow = document.getElementById('class-chips');
 const markChip = document.getElementById('mark-chip');
+const hiddenChip = document.getElementById('hidden-chip');
 
 const clsParam = () => [...activeCls].join(',');
-const filterParams = () => `cls=${clsParam()}&mark=${markOn ? 1 : 0}`;
-const cacheKey = year => `${year}|${clsParam()}|${markOn ? 1 : 0}`;
+const filterParams = () =>
+  `cls=${clsParam()}&mark=${markOn ? 1 : 0}&hidden=${hiddenOn ? 1 : 0}`;
+const cacheKey = year => `${year}|${clsParam()}|${markOn ? 1 : 0}|${hiddenOn ? 1 : 0}`;
 
 function markHTML(e) {
   const on = e.status === 'promoted';
@@ -266,12 +280,14 @@ function applyMark(id, on) {
   if (activeEntry && activeEntry.id === id) activeEntry.status = st;
 }
 
-const DEL_TITLE = 'remove from the pile — files move to compost/removed/, ' +
-                  'the voice memo itself is never touched';
+const DEL_TITLE = 'put out of view — nothing is deleted, find it again under "hidden"';
+const BACK_TITLE = 'put this back in the pile';
 
-function delHTML(id) {
-  return `<span class="del" data-del="${id}" onclick="removeEntry('${id}', event)"
-                title="${DEL_TITLE}">[x]</span>`;
+function delHTML(e) {
+  const hid = !!e.hidden;
+  return `<span class="del${hid ? ' back' : ''}" data-del="${e.id}"
+                onclick="hideEntry('${e.id}', ${!hid}, event)"
+                title="${hid ? BACK_TITLE : DEL_TITLE}">${hid ? '[+]' : '[x]'}</span>`;
 }
 
 let disarmTimer = null;
@@ -283,24 +299,26 @@ function disarmAll() {
   });
 }
 
-// two taps, because the first one is usually the hand being faster than the head
-async function removeEntry(id, ev) {
+// hiding asks twice — the first tap is usually the hand being faster than the
+// head. putting one back does not: it adds something to the view, so a misfire
+// costs a click, not a thought you meant to keep.
+async function hideEntry(id, hide, ev) {
   ev.stopPropagation();
   const el = ev.currentTarget;
-  if (!el.classList.contains('armed')) {
+  if (hide && !el.classList.contains('armed')) {
     disarmAll();
     el.classList.add('armed');
-    el.title = 'click again to take this one out';
+    el.title = 'click again to put it out of view';
     disarmTimer = setTimeout(disarmAll, 4000);  // an armed button left alone stands down
     return;
   }
-  const r = await fetch('/api/remove', {
+  const r = await fetch('/api/hide', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({id})
+    body: JSON.stringify({id, hide})
   });
   if (!r.ok) { alert(await r.text()); return; }
   disarmAll();
-  dropEntry(id);
+  dropEntry(id);   // it left whichever view you are in — the live one or the hidden one
 }
 
 function dropEntry(id) {
@@ -309,13 +327,31 @@ function dropEntry(id) {
   if (activeEntry && activeEntry.id === id) renderActive(null);
   document.querySelectorAll(`[data-del="${id}"]`).forEach(d => {
     const row = d.closest('.entry');
-    if (row) row.remove();
+    if (!row) return;
+    bumpCount(row.closest('.year-body'), -1);   // the year it was filed under
+    row.remove();
   });
+  if (statsData) { statsData.total--; setStats(statsData); }
+}
+
+// a deleted entry stops being counted immediately — waiting for the next
+// fetch leaves the page insisting on a number it can no longer show
+function bumpCount(yearBody, by) {
+  const el = yearBody && yearBody.previousElementSibling.querySelector('.count');
+  if (!el) return;   // search results have no year headers
+  el.textContent = el.textContent.replace(/\d+/, n => Math.max(0, +n + by));
 }
 
 function toggleMarkFilter() {
   markOn = !markOn;
   markChip.classList.toggle('active', markOn);
+  search();
+}
+
+function toggleHiddenFilter() {
+  hiddenOn = !hiddenOn;
+  hiddenChip.classList.toggle('active', hiddenOn);
+  expanded.clear();   // the two piles share no years; stale folds would mislead
   search();
 }
 
@@ -475,7 +511,7 @@ function renderActive(e) {
     <div class="active-box">
       <div class="top">
         <span class="label">active</span>
-        ${markHTML(e)}${delHTML(e.id)}
+        ${markHTML(e)}${delHTML(e)}
         <span class="date">${fmtDate(e.created_at)}</span>
         ${e.title ? `<span class="title">${esc(e.title)}</span>`
                   : '<span class="title none">unnamed</span>'}

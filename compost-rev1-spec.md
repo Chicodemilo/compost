@@ -32,11 +32,10 @@ These are load-bearing. Do not optimize them away.
    from the folder must always be a valid recovery path.
 4. **The AI sorts. It does not have opinions.** No rewriting, summarizing, or "improving" content.
 5. **Uncertainty routes to `compost`.** An honest unsorted pile beats a confident wrong folder.
-6. **The system never deletes.** No expiry, no trash, no `dead` state, no removal the machine
-   decides on, and no grade that condemns an entry. Material gets used or it sits. A person may
-   take an entry out of the pile (§9) — that is a human act on their own archive, not a behavior
-   of the pipeline — and even then nothing is destroyed: the files move to `removed/` and stay
-   there, readable. Emptying that folder is a deletion no code in this repo performs.
+6. **Nothing is ever deleted.** No `dead` state, no trash, no expiry, no grade that condemns
+   an entry. Material either gets used or sits. A person may put an entry **out of view** (§9),
+   which is a different act entirely: a flag, reversible in one click, with every file left
+   exactly where it was. Nothing in this repo unlinks an entry.
 
 ---
 
@@ -98,8 +97,6 @@ iPhone (press-and-hold → Voice Memos)
 ├── meta/               # one .json per entry — tags, class, location, source
 │   └── 2026/09/
 │       └── 20260902-143312-a3f9.json
-├── removed/            # entries taken out of the pile — same layout, nothing destroyed
-│   └── meta/2026/09/   #   the meta file stays as ingest's tombstone (§11)
 ├── compost.db          # SQLite index — DISPOSABLE, rebuildable
 ├── logs/
 └── inbox_failed/       # anything the pipeline choked on, with error log
@@ -127,6 +124,7 @@ CREATE TABLE entries (
     place       TEXT,                 -- nullable, human-readable if available
     duration    REAL,                 -- seconds
     status      TEXT DEFAULT 'raw',   -- 'raw' | 'promoted'  — the mark, §9
+    hidden      INTEGER DEFAULT 0,    -- out of view but not gone, §9
     indexed_at  TEXT
 );
 
@@ -202,7 +200,8 @@ Single HTML file. Served locally. Not a webapp.
 
 **Requirements:**
 - Search box → FTS5 query across transcripts
-- Filter chips: class, date range, and **the mark** — a third axis, filtered on its own
+- Filter chips: class, date range, **the mark**, and **hidden** — separate axes, each
+  filtered on its own
 - Results: date, class, tags, transcript snippet, inline `<audio controls>` per row
 - **Opens on `compost`, not on "all" and not on the classified folders.** Classified material is
   already findable. The unresolved pile is the only thing that benefits from being stumbled over.
@@ -219,13 +218,17 @@ Single HTML file. Served locally. Not a webapp.
   is the only negative signal, and it costs nothing to leave.
 - Marking writes `status` to the entry's meta JSON first, db second. It rides a `rebuild` with
   no special-casing — unlike the class roster, the mark needs no exception to files-are-truth.
-- **Remove** — `[x]` sitting beside the mark, in dark orange: the one control that takes
-  something away must not wear the mark's green or the tags' blue. Two taps, because the first
-  one is usually the hand being faster than the head; armed it goes bright, and left alone four
-  seconds it stands back down. It moves that entry's audio, transcript, and meta into `removed/`
-  and drops it from the index. It does **not** touch the Voice Memos recording; the source stays
-  exactly where it was. Removal is the person's call on their own archive, so the page offers it
-  and the pipeline never initiates it.
+- **Hidden** — `[x]` beside the mark, in dark orange: the one control that takes something
+  away must not wear the mark's green or the tags' blue. Two taps, because the first is usually
+  the hand being faster than the head; armed it goes bright, and left alone four seconds it
+  stands back down. It sets a flag and **moves nothing** — audio, transcript and meta stay put,
+  so this costs one boolean and is undone with one click.
+- A hidden entry leaves the pile completely: out of search, out of the year counts, out of the
+  header total, and never drawn by `surprise me`. "Out of view" has to mean out of view, or the
+  pile stops being trustworthy as the thing you are looking at.
+- The `hidden` chip shows that pile and only that pile, where each entry wears `[+]` to come
+  back. Restoring is a single tap — it adds something to a view, so a misfire costs a click
+  rather than a thought you meant to keep. No view ever mixes hidden and live entries.
 
 No deleting, no auth, no accounts. The mark is the one write the page makes to an entry, and it
 touches nothing the pipeline produced — not the transcript, not the class, not the tags.
@@ -279,11 +282,11 @@ more than rarely; the `compost` pile is large and that is correct.
   source material.
 - **Idempotency:** re-running ingest on an already-processed file must be a no-op, not a
   duplicate. launchd will fire spuriously.
-- **A removed entry must leave its meta file readable.** Idempotency comes from `meta/*.json`
-  alone, so an entry whose meta is unlinked reads as never-processed — and because removal
-  deliberately leaves the Voice Memo in place, the next WatchPaths fire re-ingests it under a
-  new id, minutes later. `removed/meta/` is scanned for exactly this reason. Anything that takes
-  entries out must leave the tombstone behind.
+- **Never take an entry's meta file out of `meta/`.** Idempotency comes from `meta/*.json`
+  alone, so an entry whose meta moves or vanishes reads as never-processed — and since the
+  Voice Memos recording is deliberately left alone, the next WatchPaths fire re-ingests it
+  under a new id, minutes later. This is why hiding is a flag and not a move: anything that
+  relocates entries has to carry a tombstone, and a flag needs none.
 
 ---
 
@@ -298,9 +301,9 @@ Do not build these. They are real and they come later.
   plus the one-time LLM pass to split the existing blob into dated entries. `source='note'`
   is already in the schema for this.
 - The ratchet: kill/keep/promote cycling. The mark (§9) spends the `status` column and is as
-  far as this goes — a flag, not a cycle. There is still **no kill state**: removal (§9) is not
-  a state an entry sits in, it is an entry leaving. Nothing that stays in the pile may ever
-  carry a negative label, and no judgment may ever be recorded against an entry.
+  far as this goes — a flag, not a cycle. There is still **no kill state**: `hidden` says where
+  something is shown, never what it is worth. Nothing may ever record a judgment against an
+  entry, and nothing may ever delete one.
 - Any hosted/remote/multi-user version.
 
 ---

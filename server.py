@@ -3,7 +3,8 @@
 
 GET /                    the search page
 GET /api/search?q=...    FTS5 search across all years
-                         all search routes take &mark=1 — only marked entries
+                         all search routes take &mark=1 (only marked) and
+                         &hidden=1 (only hidden; otherwise hidden are excluded)
 GET /api/search?year=Y   one year's entries (browse view loads years lazily)
 GET /api/search          per-year counts for the folded browse view
 GET /audio/<rel>         audio with Range support so <audio> can seek
@@ -11,7 +12,7 @@ GET /api/entry?id=...    one entry, whole transcript, every column + tags
 GET /api/random          one entry at random (honors ?cls= like search does)
 POST /api/reveal         {"path": audio_path} — reveal that file in Finder
 POST /api/mark           {"id": ..., "mark": true|false} — flag "something here"
-POST /api/remove         {"id": ...} — take one entry out of the pile
+POST /api/hide           {"id": ..., "hide": true|false} — out of view, or back
 GET /api/classes         the class roster (name -> writeup)
 POST /api/classes        create or update a class {"name": ..., "writeup": ...}
 DELETE /api/classes/<name>  retire a class — falls forward only: already-filed
@@ -28,7 +29,6 @@ from pathlib import Path
 
 COMPOST = Path.home() / "compost"
 META = COMPOST / "meta"
-REMOVED = COMPOST / "removed"
 DB = COMPOST / "compost.db"
 STATIC = Path(__file__).parent / "static"
 PORT = 8771
@@ -50,10 +50,16 @@ def class_filter(conn, cls: str):
     return roster, present, selected
 
 
-def row_filter(selected: list, marked: bool) -> tuple[list, list]:
-    """Conditions for the two filters. Class and mark are different axes —
-    a marked entry keeps whatever class it wears, compost included."""
-    conds, params = [], []
+def row_filter(selected: list, marked: bool, hidden: bool = False) -> tuple[list, list]:
+    """Conditions for the filters, ANDed. Class, mark and hidden are separate
+    axes — a marked entry keeps whatever class it wears, compost included.
+
+    Hidden is always pinned one way or the other, never left open: the default
+    pile excludes it, and asking for it shows that and nothing else. There is
+    no view that mixes the two, so something put out of sight stays out of
+    sight until you go looking."""
+    conds = ["e.hidden = 1" if hidden else "e.hidden = 0"]
+    params = []
     if selected:
         conds.append(f"e.class IN ({','.join('?' * len(selected))})")
         params += selected
@@ -62,19 +68,29 @@ def row_filter(selected: list, marked: bool) -> tuple[list, list]:
     return conds, params
 
 
-def set_mark(entry_id: str, marked: bool) -> dict | None:
-    """Flip one entry's mark. Meta is truth — the json write is what survives a
-    rebuild; the db update just keeps the open page honest. Carries no opinion
-    and no scale: either there is something here or nobody has said so yet."""
+FLAGS = {"status", "hidden"}   # the only columns the page may write
+
+
+def set_flag(entry_id: str, field: str, value) -> dict | None:
+    """Write one flag to the entry's meta json, then the db.
+
+    Meta is truth: the json is what survives a rebuild, the db write only
+    keeps the open page honest. Both flags are the reader's, not the clerk's,
+    and neither touches anything the pipeline produced — not the transcript,
+    not the class, not the tags. Nothing moves on disk either, which is what
+    keeps ingest's idempotency (meta/*.json alone) intact.
+    """
+    if field not in FLAGS:
+        return None
     mp = META / entry_id[:4] / entry_id[4:6] / f"{entry_id}.json"
     if not mp.is_file():
         return None
     m = json.loads(mp.read_text())
-    m["status"] = "promoted" if marked else "raw"
+    m[field] = value
     mp.write_text(json.dumps(m, indent=2))
     try:
         conn = sqlite3.connect(DB)
-        conn.execute("UPDATE entries SET status = ? WHERE id = ?", (m["status"], entry_id))
+        conn.execute(f"UPDATE entries SET {field} = ? WHERE id = ?", (value, entry_id))
         conn.commit()
         conn.close()
     except sqlite3.Error:
@@ -82,51 +98,8 @@ def set_mark(entry_id: str, marked: bool) -> dict | None:
     return load_entry(entry_id)
 
 
-def remove_entry(entry_id: str) -> dict | None:
-    """Take one entry out of the pile.
-
-    The files move to ~/compost/removed/ keeping their layout; they are not
-    unlinked. Two reasons, both load-bearing. Rebuild reconstructs the index
-    from files, so unlinking would leave nothing to recover from — a slip
-    would be final. And ingest derives idempotency from meta/*.json alone
-    (ingest.py:76), so a vanished meta file reads as "never processed" and
-    launchd re-ingests the original memo on its next fire. The moved meta is
-    the tombstone that stops it coming back.
-
-    Emptying ~/compost/removed/ is a deletion only the person at the keyboard
-    performs. This function never does it.
-    """
-    entry = load_entry(entry_id)
-    if entry is None:
-        return None
-    ym = f"{entry_id[:4]}/{entry_id[4:6]}"
-    targets = [COMPOST / "transcripts" / ym / f"{entry_id}.txt",
-               COMPOST / "meta" / ym / f"{entry_id}.json"]
-    if entry.get("audio_path"):
-        audio = (COMPOST / entry["audio_path"]).resolve()
-        if audio.is_relative_to((COMPOST / "audio").resolve()):
-            targets.insert(0, audio)
-    moved = []
-    for src in targets:
-        if not src.is_file():
-            continue
-        dst = REMOVED / src.relative_to(COMPOST)
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        src.replace(dst)
-        moved.append(str(dst.relative_to(COMPOST)))
-    try:
-        conn = sqlite3.connect(DB)
-        conn.execute("DELETE FROM entries WHERE id = ?", (entry_id,))
-        conn.execute("DELETE FROM tags WHERE entry_id = ?", (entry_id,))
-        conn.execute("DELETE FROM entries_fts WHERE id = ?", (entry_id,))
-        conn.commit()
-        conn.close()
-    except sqlite3.Error:
-        pass  # db is disposable; the files already left, so rebuild agrees
-    return {"id": entry_id, "moved": moved}
-
-
-def load_entry(entry_id: str = "", cls: str = "", marked: bool = False):
+def load_entry(entry_id: str = "", cls: str = "", marked: bool = False,
+               hidden: bool = False):
     """One whole entry — full transcript, every column, tags joined.
     No entry_id means pick at random from whatever the filters allow."""
     conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
@@ -137,7 +110,7 @@ def load_entry(entry_id: str = "", cls: str = "", marked: bool = False):
     else:
         _, _, selected = class_filter(conn, cls)
         # random is random: the filters narrow the pile, nothing weights the draw
-        conds, params = row_filter(selected, marked)
+        conds, params = row_filter(selected, marked, hidden)
         where = f" WHERE {' AND '.join(conds)}" if conds else ""
         row = conn.execute(
             f"SELECT e.*, {TAGS_SUB} FROM entries e{where} ORDER BY RANDOM() LIMIT 1",
@@ -146,12 +119,13 @@ def load_entry(entry_id: str = "", cls: str = "", marked: bool = False):
     return dict(row) if row else None
 
 
-def query_db(q: str, year: str = "", cls: str = "", marked: bool = False, limit: int = 100):
+def query_db(q: str, year: str = "", cls: str = "", marked: bool = False,
+             hidden: bool = False, limit: int = 100):
     conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     out = {}
     roster, present, selected = class_filter(conn, cls)
-    conds, fparams = row_filter(selected, marked)
+    conds, fparams = row_filter(selected, marked, hidden)
     cfilter = "".join(f" AND {c}" for c in conds)
     tags_sub = TAGS_SUB
     if q.strip():
@@ -177,7 +151,9 @@ def query_db(q: str, year: str = "", cls: str = "", marked: bool = False, limit:
             f"FROM entries e GROUP BY 1 ORDER BY 1 DESC", fparams)
         out["years"] = [{"year": y, "count": c} for y, c in counts]
         out["classes"] = [c for c in roster if c in present] + sorted(present - set(roster))
-    total = conn.execute("SELECT COUNT(*), MIN(created_at), MAX(created_at) FROM entries").fetchone()
+    total = conn.execute(
+        "SELECT COUNT(*), MIN(created_at), MAX(created_at) FROM entries e "
+        f"WHERE {conds[0]}").fetchone()   # conds[0] is always the hidden pin
     conn.close()
     out.update(total=total[0], oldest=total[1], newest=total[2])
     return out
@@ -228,12 +204,14 @@ class Handler(BaseHTTPRequestHandler):
             qs = urllib.parse.parse_qs(url.query)
             body = json.dumps(query_db(qs.get("q", [""])[0], qs.get("year", [""])[0],
                                        qs.get("cls", [""])[0],
-                                       qs.get("mark", [""])[0] == "1")).encode()
+                                       qs.get("mark", [""])[0] == "1",
+                                       qs.get("hidden", [""])[0] == "1")).encode()
             self._send(200, "application/json", body)
         elif url.path in ("/api/entry", "/api/random"):
             qs = urllib.parse.parse_qs(url.query)
             entry = load_entry(qs.get("id", [""])[0] if url.path == "/api/entry" else "",
-                               qs.get("cls", [""])[0], qs.get("mark", [""])[0] == "1")
+                               qs.get("cls", [""])[0], qs.get("mark", [""])[0] == "1",
+                               qs.get("hidden", [""])[0] == "1")
             if entry is None:
                 self._send(404, "text/plain", b"no such entry")
                 return
@@ -286,9 +264,9 @@ class Handler(BaseHTTPRequestHandler):
         subprocess.run(["open", "-R", str(f)], check=False)
         self._send(200, "application/json", b'{"revealed": true}')
 
-    def _mark(self, removing: bool = False):
-        """Mark toggles the one bit that means there is something here — not a
-        rating, not a tag, a third axis. Remove takes the entry out entirely."""
+    def _flag(self, hiding: bool = False):
+        """Mark says there is something here. Hidden says keep it out of my
+        view. Two axes, both the reader's, neither destroying anything."""
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
             entry_id = str(body.get("id", ""))
@@ -297,7 +275,11 @@ class Handler(BaseHTTPRequestHandler):
         if not ENTRY_ID_RE.match(entry_id):
             self._send(400, "text/plain", b"bad entry id")
             return
-        entry = remove_entry(entry_id) if removing else set_mark(entry_id, bool(body.get("mark")))
+        if hiding:
+            entry = set_flag(entry_id, "hidden", 1 if body.get("hide") else 0)
+        else:
+            entry = set_flag(entry_id, "status",
+                             "promoted" if body.get("mark") else "raw")
         if entry is None:
             self._send(404, "text/plain", b"no such entry")
             return
@@ -308,8 +290,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/reveal":
             self._reveal()
             return
-        if path in ("/api/mark", "/api/remove"):
-            self._mark(path == "/api/remove")
+        if path in ("/api/mark", "/api/hide"):
+            self._flag(path == "/api/hide")
             return
         if path != "/api/classes":
             self._send(404, "text/plain", b"not found")

@@ -76,17 +76,14 @@ def resolve_recordings_dir() -> Path:
 def processed_source_files() -> set[str]:
     """Idempotency from files alone: every meta json records its source file name.
 
-    removed/meta counts too. An entry taken out of the pile keeps its meta
-    file as a tombstone — without it the original memo reads as new and gets
-    re-ingested on the next WatchPaths fire, so removing anything would only
-    ever be temporary."""
+    Hiding an entry sets a flag and moves nothing, so every processed memo
+    keeps a meta file right here and this stays a single-directory scan."""
     seen = set()
-    for root in (META, COMPOST / "removed" / "meta"):
-        for p in root.rglob("*.json"):
-            try:
-                seen.add(json.loads(p.read_text()).get("source_file", ""))
-            except (json.JSONDecodeError, OSError):
-                continue
+    for p in META.rglob("*.json"):
+        try:
+            seen.add(json.loads(p.read_text()).get("source_file", ""))
+        except (json.JSONDecodeError, OSError):
+            continue
     return seen
 
 
@@ -273,6 +270,7 @@ def ingest_one(src: Path, strikes: dict[str, int]) -> None:
             "duration": duration_of(audio_dst),
             "lat": None, "lon": None, "place": None,
             "status": "raw",
+            "hidden": False,
             "ingested_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         }, indent=2)),
     ]:

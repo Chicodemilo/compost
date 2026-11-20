@@ -46,8 +46,10 @@ that the plumbing might save someone the evening it takes to build.
   a rating: one bit, one direction, no scale and no opposite, written only by
   you and filtered on its own. It lands in the entry's meta JSON, so it
   survives `rebuild` like everything else that matters. A dark-orange `[x]`
-  beside it removes an entry from the pile — two taps, files moved to
-  `compost/removed/` rather than unlinked, Voice Memos never touched. Class edits apply to future filing only; already-filed entries
+  beside it puts an entry out of view — two taps, and it leaves the pile
+  entirely: out of search, out of the year counts, out of the header total,
+  never drawn by `random`. Nothing moves on disk and nothing is deleted; the
+  `hidden` chip shows that pile, where `[+]` puts an entry back in one tap. Class edits apply to future filing only; already-filed entries
   keep their labels. An active-post box sits above the search: `random`
   pulls one entry out of the pile (honoring whatever class chips are lit),
   clicking any entry's date promotes it, and the box holds it — whole
