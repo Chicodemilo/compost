@@ -236,11 +236,12 @@ Single HTML file. Served locally. Not a webapp.
 - **Add a line** — a one-line field under the draft with `↑ top` and `↓ end`. Each addition
   arrives stamped with the date and goes in whole; nothing already written is touched. Enter
   appends, and focus stays in the field, because adding one line usually means adding two.
-- **Refining is accumulation, not replacement.** That is why there is no revision history and
-  why none is needed: a draft grows into a dated log of how the idea moved, so nothing gets
-  overwritten in the first place. The textarea stays fully editable for when you do want to
-  rewrite — but the fast path adds. If you want real history anyway, drafts are plain files:
-  `git init ~/compost` with `audio/` ignored buys it for zero code.
+- **Refining is accumulation by default, not by guarantee.** Adding a line leaves what is
+  already written alone, so the fast path never overwrites — but the textarea stays fully
+  editable, and a past addition can still be revised away. This reduces how often you destroy
+  your own earlier thinking; it does not prevent it. Anything that claims otherwise is wrong.
+  The only real guarantee is history, and drafts are plain files, so `git init ~/compost` with
+  `audio/` ignored buys it for zero code in here.
 - **Hidden** — `[x]` beside the mark, in dark orange: the one control that takes something
   away must not wear the mark's green or the tags' blue. **One click, and it goes.** No confirm
   step: it sets a flag and **moves nothing** — audio, transcript and meta stay put — so there is

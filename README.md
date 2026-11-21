@@ -62,9 +62,9 @@ that the plumbing might save someone the evening it takes to build.
   thinking. Drafts are plain `.md` files under `drafts/`, indexed alongside
   transcripts so search finds your writing too. Under it, a one-line field
   with `↑ top` / `↓ end` adds a dated line without touching what is already
-  there — refining by accumulation, which is why no revision history is
-  needed. If you want it anyway, `git init ~/compost` with `audio/` ignored
-  costs nothing.
+  there. That makes the fast path additive, though the box stays editable, so
+  it is a habit rather than a guarantee. For a real guarantee, drafts are
+  plain files: `git init ~/compost` with `audio/` ignored costs nothing.
 - `static/index.html` — the page. One file, vanilla JS, no build step.
 
 Everything lands in `~/compost/` — audio, transcripts, meta, index, logs.
