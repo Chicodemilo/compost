@@ -60,8 +60,11 @@ that the plumbing might save someone the evening it takes to build.
   transcript is what the machine heard, the draft is what you made of it, and
   only keeping them apart lets you re-transcribe later without losing your
   thinking. Drafts are plain `.md` files under `drafts/`, indexed alongside
-  transcripts so search finds your writing too. No revision history — if you
-  want it, `git init ~/compost` with `audio/` ignored costs nothing.
+  transcripts so search finds your writing too. Under it, a one-line field
+  with `↑ top` / `↓ end` adds a dated line without touching what is already
+  there — refining by accumulation, which is why no revision history is
+  needed. If you want it anyway, `git init ~/compost` with `audio/` ignored
+  costs nothing.
 - `static/index.html` — the page. One file, vanilla JS, no build step.
 
 Everything lands in `~/compost/` — audio, transcripts, meta, index, logs.

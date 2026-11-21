@@ -233,9 +233,14 @@ Single HTML file. Served locally. Not a webapp.
   always tell what you actually said from what you decided afterwards you meant. **The page
   never edits the transcript.** Both are indexed, so search covers your writing too and the
   snippet highlights whichever one matched.
-- **No revision history.** It would be real machinery for a personal archive, and the design
-  already answers it: drafts are plain files, so `git init ~/compost` with `audio/` ignored
-  buys real history for zero code.
+- **Add a line** — a one-line field under the draft with `↑ top` and `↓ end`. Each addition
+  arrives stamped with the date and goes in whole; nothing already written is touched. Enter
+  appends, and focus stays in the field, because adding one line usually means adding two.
+- **Refining is accumulation, not replacement.** That is why there is no revision history and
+  why none is needed: a draft grows into a dated log of how the idea moved, so nothing gets
+  overwritten in the first place. The textarea stays fully editable for when you do want to
+  rewrite — but the fast path adds. If you want real history anyway, drafts are plain files:
+  `git init ~/compost` with `audio/` ignored buys it for zero code.
 - **Hidden** — `[x]` beside the mark, in dark orange: the one control that takes something
   away must not wear the mark's green or the tags' blue. **One click, and it goes.** No confirm
   step: it sets a flag and **moves nothing** — audio, transcript and meta stay put — so there is
