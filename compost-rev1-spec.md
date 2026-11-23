@@ -211,8 +211,13 @@ Single HTML file. Served locally. Not a webapp.
 - Results: date, class, tags, transcript snippet, inline `<audio controls>` per row
 - **Two separator weights, and only two.** `horz_sep_minor` (1px) divides items inside a group;
   `horz_sep_major` (2px) divides the groups — under the header, between the active post and the
-  search, and between the years. Both the same grey. Every grey rule across the page is one of
-  these two classes; a box outline is a different thing and is not one of them.
+  search, and between the years. Every grey rule across the page is one of these two classes; a
+  box outline is a different thing and is not one of them.
+- Both are **gradients, not borders**: full strength from the left, fading out before the right
+  edge, so a long list reads as texture rather than pinstripes. `--sep-solid` sets where the
+  fade begins and `--sep-gone` where it finishes; they are meant to be tuned. Anything that
+  both paints a background colour and carries a separator must use `background-color`, since
+  the `background` shorthand wipes the gradient.
 - **Opens on `compost`, not on "all" and not on the classified folders.** Classified material is
   already findable. The unresolved pile is the only thing that benefits from being stumbled over.
 - **`surprise me` button** — pulls one random entry from `compost`. Random is random: the

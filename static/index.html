@@ -17,15 +17,32 @@ body {
 }
 /* The only two horizontal rules on the page. Minor divides items inside a
    group, major divides the groups themselves. Nothing else draws a grey line
-   across the page — box outlines are a different thing and stay as they are. */
-.horz_sep_minor { border-bottom: 1px solid #333; }
-.horz_sep_major { border-bottom: 2px solid #333; }
+   across the page — box outlines are a different thing and stay as they are.
+
+   They are gradients, not borders: full strength from the left, then faded to
+   nothing by the right edge, so a screen full of them reads as texture instead
+   of pinstripes. --sep-solid is where the fade starts, --sep-gone is where it
+   finishes — those two are the knobs. */
+:root {
+  --sep: #333;
+  --sep-clear: #33333300;
+  --sep-solid: 75%;
+  --sep-gone: 100%;
+}
+.horz_sep_minor, .horz_sep_major {
+  background-image: linear-gradient(to right,
+    var(--sep) var(--sep-solid), var(--sep-clear) var(--sep-gone));
+  background-repeat: no-repeat;
+  background-position: left bottom;
+}
+.horz_sep_minor { background-size: 100% 1px; }
+.horz_sep_major { background-size: 100% 2px; }
 /* same rule on the upper edge, where the divider belongs to the block below it */
-.horz_sep_minor.on_top { border-bottom: 0; border-top: 1px solid #333; }
+.horz_sep_minor.on_top { background-position: left top; }
 .header {
   padding: 20px 24px 16px;
   display: flex; align-items: baseline; gap: 16px;
-  position: sticky; top: 0; background: #0a0a0a; z-index: 50;
+  position: sticky; top: 0; background-color: #0a0a0a; z-index: 50;
 }
 .header h1 {
   font-family: 'Special Elite', cursive;
@@ -111,7 +128,7 @@ body {
   cursor: pointer; user-select: none;
 }
 .header .classes-toggle:hover { color: #c8b89a; }
-#classes-panel { display: none; padding: 16px 24px; background: #0d0d0c; }
+#classes-panel { display: none; padding: 16px 24px; background-color: #0d0d0c; }
 #classes-panel.open { display: block; }
 #classes-panel .note { font-size: 10px; color: #555; letter-spacing: 1px; margin-bottom: 12px; text-transform: uppercase; }
 .class-row { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px; max-width: 900px; }
