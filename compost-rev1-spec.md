@@ -262,7 +262,10 @@ Single HTML file. Served locally. Not a webapp.
   The grammar covers what people actually write there: chords with extensions and slash basses,
   bar lines, `%`, `N.C.`, `x2`, and words like riff, solo, intro, vamp. Lowercase is fixed up,
   so `am` becomes `Am`.
-- `[clear]` empties the notes, two taps, since it cannot be undone from inside the page.
+- `[clear chords]` takes out every chord row and leaves the words alone. Two taps, because a
+  worked-out set of chords is real work, but the lyrics are never at risk.
+- The lanes on screen are **held, not re-derived.** Re-parsing the text on every keystroke meant
+  a single bad line renumbered every lane, and the chords jumped to the wrong words.
 - Note the class is `chord-chip`, not `chip`: `chip` is already the filter chips, and the
   collision quietly made every class filter look like a chord.
 - **Phone is a first pass, not a finished design.** Under 600px the side padding comes in, the

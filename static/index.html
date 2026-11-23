@@ -706,8 +706,8 @@ function renderActive(e) {
       <div class="ribbon horz_sep_minor on_top">
         <span class="tool" id="rb-chord-rows" onclick="toggleChordRows()"
               title="open a chord row above every line">[chord rows]</span>
-        <span class="tool danger" id="rb-clear" onclick="clearNotes()"
-              title="empty the notes — the recording and transcript are untouched">[clear]</span>
+        <span class="tool danger" id="rb-clear" onclick="clearChordRows()"
+              title="take out every chord row — the words are left alone">[clear chords]</span>
       </div>
     </div>`;
   rbRateIdx = 0;                       // a new hunk starts at full speed
@@ -806,6 +806,9 @@ function parseLanes(text) {
   return out;
 }
 
+const stripChordRows = text =>
+  text.split('\n').filter(l => !isChordRow(l)).join('\n');
+
 function serializeLanes(lanes) {
   const out = [];
   for (const l of lanes) {
@@ -815,31 +818,36 @@ function serializeLanes(lanes) {
   return out.join('\n');
 }
 
-// two taps, because this one is not reversible from inside the page
+// takes out the chord rows and nothing else — the words are never at risk.
+// still two taps, because a worked-out set of chords is real work.
 let clearArmed = null;
-function clearNotes() {
+function clearChordRows() {
   const btn = document.getElementById('rb-clear');
   const box = document.getElementById('notes-box');
   if (!btn || !box) return;
   if (!btn.classList.contains('armed')) {
     btn.classList.add('armed');
-    btn.textContent = '[clear — sure?]';
+    btn.textContent = '[clear chords — sure?]';
     clearArmed = setTimeout(() => {
       btn.classList.remove('armed');
-      btn.textContent = '[clear]';
+      btn.textContent = '[clear chords]';
     }, 4000);
     return;
   }
   clearTimeout(clearArmed);
   btn.classList.remove('armed');
-  btn.textContent = '[clear]';
-  box.value = '';
-  showCount(0);
+  btn.textContent = '[clear chords]';
+  box.value = stripChordRows(box.value);
+  showCount(box.value.length);
   clearTimeout(notesTimer);
-  saveNotes(activeHunk.id, '');
+  saveNotes(activeHunk.id, box.value);
   paintChordRows();
 }
 
+// the lanes on screen, held rather than re-derived: re-parsing the text on
+// every keystroke meant one bad line renumbered everything and the chords
+// jumped to the wrong words
+let laneRows = [];
 let chordRowsOn = false;
 
 function toggleChordRows() {
@@ -861,7 +869,7 @@ function paintChordRows() {
     return;
   }
   flushNotes();                        // never strand unsaved words behind a view switch
-  const rows = parseLanes(box.value);
+  const rows = laneRows = parseLanes(box.value);
   lanes.innerHTML = rows.map((r, i) => r.lyric.trim() === ''
     ? '<div class="lane-break"></div>'
     : `<div class="lane">
@@ -899,10 +907,16 @@ const chipsHTML = line => tokensOf(line).map(t =>
   `<span class="chord-chip" contenteditable="true" spellcheck="false"
          data-col="${t.col}">${esc(t.text)}</span>`).join('');
 
-const chipsToLine = row => lineOf([...row.querySelectorAll('.chord-chip')].map(c => ({
-  text: c.textContent.trim(),
-  col: Math.max(0, +c.dataset.col || 0),
-})));
+const tidyChord = t => {
+  const fixed = t.charAt(0).toUpperCase() + t.slice(1);
+  return (CHORD.test(fixed) || CHORD_EXTRA.test(fixed)) ? fixed : null;
+};
+
+// nothing that cannot read back as a chord row is allowed out of here, so the
+// file can never acquire a line that would return as a lyric
+const chipsToLine = row => lineOf([...row.querySelectorAll('.chord-chip')]
+  .map(c => ({ text: tidyChord(c.textContent.trim()), col: Math.max(0, +c.dataset.col || 0) }))
+  .filter(t => t.text));
 
 // left is set in px from the lyric's character width, not in the chip's own ch
 function placeChips(row) {
@@ -959,10 +973,8 @@ function wireChordRow(row) {
     const chip = ev.target.closest('.chord-chip');
     if (!chip) return;
     const t = chip.textContent.trim();
-    const ok = !t || CHORD.test(t) || CHORD_EXTRA.test(t) ||
-               CHORD.test(t.charAt(0).toUpperCase() + t.slice(1));
-    chip.classList.toggle('bad', !ok);
-    if (ok) commitLanes();          // only sound chords reach the file
+    chip.classList.toggle('bad', !(!t || tidyChord(t)));
+    commitLanes();                  // tidyChord filters, so only chords get written
   });
 
   row.addEventListener('keydown', ev => {
@@ -1055,12 +1067,12 @@ function chipColWidth(row) {
 // the lanes are a view of the notes rather than a second place they live
 function commitLanes() {
   const box = document.getElementById('notes-box');
-  const rows = parseLanes(box.value);
+  if (!laneRows.length) return;
   document.querySelectorAll('#notes-lanes .chord-row').forEach(row => {
-    const r = rows[+row.dataset.i];
+    const r = laneRows[+row.dataset.i];
     if (r) r.chord = chipsToLine(row);
   });
-  box.value = serializeLanes(rows);
+  box.value = serializeLanes(laneRows);
   showCount(box.value.length);
   notesState('');
   clearTimeout(notesTimer);
