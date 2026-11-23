@@ -233,6 +233,13 @@ Single HTML file. Served locally. Not a webapp.
   pile stays visible and dimmed around the edges, carries a border and a shadow, and closes on
   a click in the dimmed margin as well as on escape. Filling the viewport edge to edge read as
   a navigation, and the whole point is that it is something laid on top which you can put down.
+- **The ribbon** — a strip of tools stuck to the bottom of the big view, sticky so it survives
+  scrolling. It exists because the modal created the problem: the player sits at the top of the
+  box and you write at the bottom, so by the time you are working the tape is out of reach.
+  First set is transport — `[play]`, `[-5s]`, `[loop]`, and a rate cycle through 1x / 0.75x /
+  0.5x for catching mumbled words. It **mirrors** the `<audio>` element rather than owning it,
+  listening for play and pause, so the controls at the top and bottom can never disagree.
+  Hidden outside the big view, where the player is right there.
 - **Phone is a first pass, not a finished design.** Under 600px the side padding comes in, the
   hunk row wraps instead of squeezing its tags, and the panels shrink. The two row controls sit
   in one `.ctrls` wrapper so a wrapping row can never strand `[archive]` on a line by itself

@@ -273,6 +273,21 @@ textarea.notes {
 }
 textarea.notes:focus { border-color: #c8b89a; }
 textarea.notes::placeholder { color: #3a3a3a; }
+/* only in the big view, where the player has scrolled off the top and you are
+   writing against a tape you can no longer reach */
+.ribbon { display: none; }
+#active.big .ribbon {
+  display: flex; align-items: center; gap: 14px;
+  position: sticky; bottom: 0; margin-top: 10px;
+  padding: 10px 2px 4px; background-color: #0d0d0c;
+}
+.ribbon .tool {
+  font-size: 11px; color: #7a8ab8; cursor: pointer; user-select: none;
+  letter-spacing: 0; white-space: nowrap;
+}
+.ribbon .tool:hover { color: #e8d5b5; }
+.ribbon .tool.on { color: #8f9f6b; }
+.ribbon .rb-time { margin-left: auto; font-size: 10px; color: #555; letter-spacing: 1px; }
 .hunk .title, .active-box .title { color: #e8d5b5; font-size: 12px; letter-spacing: 1px; }
 .hunk .title.none, .active-box .title.none { color: #3a3a3a; font-style: italic; letter-spacing: 0; }
 .hunk .date.pick { cursor: pointer; }
@@ -631,7 +646,16 @@ function renderActive(e) {
       </div>
       <textarea class="notes" id="notes-box" spellcheck="true" maxlength="${MAX_NOTES}"
                 placeholder="work it out here…">${esc(e.notes || '')}</textarea>
+      <div class="ribbon horz_sep_minor on_top">
+        <span class="tool" id="rb-play" onclick="rbPlay()" title="play from where you left off">[play]</span>
+        <span class="tool" onclick="rbSeek(-5)" title="back five seconds">[-5s]</span>
+        <span class="tool" id="rb-loop" onclick="rbLoop()" title="keep it going round">[loop]</span>
+        <span class="tool" id="rb-rate" onclick="rbRate()" title="slow it down to catch the words">[1x]</span>
+        <span class="rb-time" id="rb-time">0:00</span>
+      </div>
     </div>`;
+  rbRateIdx = 0;                       // a new hunk starts at full speed
+  wireRibbon(activeWrap.querySelector('audio'));
   const box = document.getElementById('notes-box');
   showCount(box.value.length);
   box.addEventListener('input', () => {
@@ -691,6 +715,59 @@ async function saveNotes(id, text) {
   } catch (err) {
     notesState('failed', 'not saved');
   }
+}
+
+// ---- ribbon: transport for the hunk you are writing against ----
+const rbAudio = () => document.querySelector('.active-box audio');
+const RATES = [1, 0.75, 0.5];
+let rbRateIdx = 0;
+
+function rbPlay() {
+  const a = rbAudio();
+  if (!a) return;
+  a.paused ? a.play() : a.pause();
+}
+
+function rbSeek(by) {
+  const a = rbAudio();
+  if (a) a.currentTime = Math.max(0, a.currentTime + by);
+}
+
+function rbLoop() {
+  const a = rbAudio();
+  if (!a) return;
+  a.loop = !a.loop;
+  document.getElementById('rb-loop')?.classList.toggle('on', a.loop);
+}
+
+function rbRate() {
+  const a = rbAudio();
+  if (!a) return;
+  rbRateIdx = (rbRateIdx + 1) % RATES.length;
+  a.playbackRate = RATES[rbRateIdx];
+  const el = document.getElementById('rb-rate');
+  if (el) {
+    el.textContent = `[${RATES[rbRateIdx]}x]`;
+    el.classList.toggle('on', rbRateIdx !== 0);
+  }
+}
+
+const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+// the ribbon mirrors the player rather than owning it, so the controls at the
+// top of the box and the ones at the bottom can never disagree
+function wireRibbon(a) {
+  if (!a) return;
+  const play = document.getElementById('rb-play');
+  const time = document.getElementById('rb-time');
+  const paint = () => { if (play) play.textContent = a.paused ? '[play]' : '[pause]'; };
+  a.addEventListener('play', paint);
+  a.addEventListener('pause', paint);
+  a.addEventListener('timeupdate', () => {
+    if (time) time.textContent = clock(a.currentTime) +
+      (isFinite(a.duration) ? ' / ' + clock(a.duration) : '');
+  });
+  paint();
 }
 
 function toggleBig(force) {
