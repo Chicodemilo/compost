@@ -264,9 +264,16 @@ Single HTML file. Served locally. Not a webapp.
   The grammar covers what people actually write there: chords with extensions and slash basses,
   bar lines, `%`, `N.C.`, `x2`, and words like riff, solo, intro, vamp. Lowercase is fixed up,
   so `am` becomes `Am`.
-- The ribbon is organised in **named groups**: a label in dim capitals, its controls, then a
-  `|`. The first group is `chord rows  [show/hide]  [clear]  |`. The label carries the noun so
-  the buttons can be verbs, and the bar marks where the next group of tools will start.
+- The ribbon is a **tab strip**: `/ songs \` and `/ text \`, drawn with slashes so it reads as
+  tabs in a typewriter face without a box-drawing character that might not render. The active
+  tab's tools sit to the right of a `|`.
+- **songs** holds the chord rows: the toggle reads `[show]` or `[hide]` — whichever it will do
+  next, never both — plus `[clear]`.
+- **text** holds markdown marks applied to the highlighted words: `[bold]` and `[italic]`.
+  Notes are `.md` on disk, so these are the markdown the file already speaks. Applying a mark to
+  text that already has it takes it off again, so the buttons toggle rather than piling markers
+  up, and the selection is kept across the edit. Choosing the text tab closes the chord lanes,
+  since those tools need the plain box rather than the lanes.
 - `[clear]` takes out every chord row and leaves the words alone. Two taps, because a
   worked-out set of chords is real work, but the lyrics are never at risk.
 - The lanes on screen are **held, not re-derived.** Re-parsing the text on every keystroke meant

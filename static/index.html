@@ -281,10 +281,19 @@ textarea.notes::placeholder { color: #3a3a3a; }
   position: sticky; bottom: 0; margin-top: 10px;
   padding: 10px 2px 4px; background-color: #0d0d0c;
 }
-.ribbon .tool-label {
-  font-size: 10px; color: #555; letter-spacing: 2px; text-transform: uppercase;
-  user-select: none; white-space: nowrap;
+/* ascii tabs: the slashes do the work, so it reads as a tab strip in a
+   typewriter face without a single box-drawing character to go missing */
+.ribbon .rb-tabs { display: flex; align-items: center; gap: 2px; }
+.ribbon .rb-tab {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  color: #4a4a4a; cursor: pointer; user-select: none; white-space: pre;
+  padding: 2px 0;
 }
+.ribbon .rb-tab:hover { color: #8a8a8a; }
+.ribbon .rb-tab.active { color: #e8d5b5; background-color: #242424; border-radius: 2px 2px 0 0; }
+.ribbon .rb-tools { display: flex; align-items: center; gap: 10px; }
+.ribbon .rb-hint { font-size: 9px; color: #3a3a3a; letter-spacing: 1px; }
+.ribbon .rb-hint.nag { color: #b8753a; }
 .ribbon .rb-sep { color: #333; user-select: none; margin: 0 6px; }
 .ribbon .tool {
   font-size: 11px; color: #7a8ab8; cursor: pointer; user-select: none;
@@ -709,18 +718,16 @@ function renderActive(e) {
                 placeholder="work it out here…">${esc(e.notes || '')}</textarea>
       <div id="notes-lanes" hidden></div>
       <div class="ribbon horz_sep_minor on_top">
-        <span class="tool-label">chord rows</span>
-        <span class="tool" id="rb-chord-rows" onclick="toggleChordRows()"
-              title="open a chord row above every return">[show/hide]</span>
-        <span class="tool danger" id="rb-clear" onclick="clearChordRows()"
-              title="take out every chord row — the words are left alone">[clear]</span>
+        <span class="rb-tabs" id="rb-tabs"></span>
         <span class="rb-sep">|</span>
+        <span class="rb-tools" id="rb-tools"></span>
       </div>
     </div>`;
   rbRateIdx = 0;                       // a new hunk starts at full speed
   wireRibbon(activeWrap.querySelector('audio'));
   chordRowsOn = false;                 // and in the plain box, writing words
   paintChordRows();
+  paintRibbon();
   const box = document.getElementById('notes-box');
   showCount(box.value.length);
   box.addEventListener('input', () => {
@@ -851,6 +858,65 @@ function clearChordRows() {
   paintChordRows();
 }
 
+// ---- the ribbon: tabs of tools ----
+const TABS = [
+  { id: 'songs', label: 'songs' },
+  { id: 'text',  label: 'text'  },
+];
+let activeTab = 'songs';
+
+const TAB_TOOLS = {
+  songs: () => `
+    <span class="tool" id="rb-chord-rows" onclick="toggleChordRows()"
+          title="a chord row above every return">${chordRowsOn ? '[hide]' : '[show]'} chord rows</span>
+    <span class="tool danger" id="rb-clear" onclick="clearChordRows()"
+          title="take out every chord row — the words are left alone">[clear]</span>`,
+  text: () => `
+    <span class="tool" onclick="wrapSelection('**')" title="**bold** the selected words">[bold]</span>
+    <span class="tool" onclick="wrapSelection('*')" title="*italic* the selected words">[italic]</span>
+    <span class="rb-hint" id="rb-hint">select some words first</span>`,
+};
+
+function paintRibbon() {
+  const tabs = document.getElementById('rb-tabs');
+  const tools = document.getElementById('rb-tools');
+  if (!tabs || !tools) return;
+  tabs.innerHTML = TABS.map(t =>
+    `<span class="rb-tab${t.id === activeTab ? ' active' : ''}"
+           onclick="selectTab('${t.id}')">/ ${t.label} \\</span>`).join('');
+  tools.innerHTML = TAB_TOOLS[activeTab]();
+}
+
+function selectTab(id) {
+  activeTab = id;
+  // the text tools work on the box, so they need the box rather than the lanes
+  if (id === 'text' && chordRowsOn) { chordRowsOn = false; paintChordRows(); }
+  paintRibbon();
+}
+
+// notes are .md on disk, so bold and italic are the markdown they already are.
+// wrapping twice unwraps, so the buttons toggle rather than pile markers up.
+function wrapSelection(marker) {
+  const box = document.getElementById('notes-box');
+  const hint = document.getElementById('rb-hint');
+  if (!box || box.hidden) return;
+  const a = box.selectionStart, b = box.selectionEnd, v = box.value;
+  if (a === b) {
+    if (hint) { hint.classList.add('nag'); setTimeout(() => hint.classList.remove('nag'), 1200); }
+    box.focus();
+    return;
+  }
+  const n = marker.length;
+  const already = v.slice(a - n, a) === marker && v.slice(b, b + n) === marker;
+  box.value = already
+    ? v.slice(0, a - n) + v.slice(a, b) + v.slice(b + n)
+    : v.slice(0, a) + marker + v.slice(a, b) + marker + v.slice(b);
+  box.focus();
+  const shift = already ? -n : n;
+  box.setSelectionRange(a + shift, b + shift);
+  box.dispatchEvent(new Event('input'));
+}
+
 // the lanes on screen, held rather than re-derived: re-parsing the text on
 // every keystroke meant one bad line renumbered everything and the chords
 // jumped to the wrong words
@@ -860,6 +926,7 @@ let chordRowsOn = false;
 function toggleChordRows() {
   chordRowsOn = !chordRowsOn;
   paintChordRows();
+  paintRibbon();
 }
 
 function paintChordRows() {
