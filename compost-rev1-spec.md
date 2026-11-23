@@ -252,6 +252,17 @@ Single HTML file. Served locally. Not a webapp.
   the monospace grid and redraws from the committed line on drop, so what you see and what is
   on disk can never drift. Two chords dropped on top of each other are pushed apart, never
   silently stacked.
+- Chips are **bigger than the words and white**, positioned in pixels measured from the
+  *lyric's* character width — their own `ch` would be wrong at a larger size, and the grid
+  belongs to the line underneath.
+- **A chord row only admits chords.** Because a chord row is recognised by what is in it,
+  anything else comes back from disk as a lyric line — and every lyric line grows a lane of
+  its own, so one stray word becomes a stack of empty rows that grows each time the view is
+  reopened. A chip that cannot be a chord goes red and reverts rather than reaching the file.
+  The grammar covers what people actually write there: chords with extensions and slash basses,
+  bar lines, `%`, `N.C.`, `x2`, and words like riff, solo, intro, vamp. Lowercase is fixed up,
+  so `am` becomes `Am`.
+- `[clear]` empties the notes, two taps, since it cannot be undone from inside the page.
 - Note the class is `chord-chip`, not `chip`: `chip` is already the filter chips, and the
   collision quietly made every class filter look like a chord.
 - **Phone is a first pass, not a finished design.** Under 600px the side padding comes in, the

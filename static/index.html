@@ -287,6 +287,9 @@ textarea.notes::placeholder { color: #3a3a3a; }
 }
 .ribbon .tool:hover { color: #e8d5b5; }
 .ribbon .tool.on { color: #8f9f6b; }
+.ribbon .tool.danger { color: #6b4a28; }
+.ribbon .tool.danger:hover { color: #b8753a; }
+.ribbon .tool.danger.armed { color: #e09a4a; }
 .ribbon .rb-time, .transport .rb-time {
   margin-left: auto; font-size: 10px; color: #555; letter-spacing: 1px;
 }
@@ -310,19 +313,25 @@ textarea.notes::placeholder { color: #3a3a3a; }
 /* the chord row is a grid, not a text field. a chord sits at a character
    column, which is exactly how a chord sheet has always worked — so dragging
    one left or right is just changing how many spaces precede it in the file. */
+/* the row keeps the lyric's font so its character grid is the lyric's grid,
+   even though the chips sitting on it are bigger */
 .lane .chord-row {
-  position: relative; height: 1.7em; cursor: text;
+  position: relative; height: 22px; cursor: text;
   font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.7;
 }
 .lane .chord-chip {
-  position: absolute; top: 0; cursor: grab; user-select: none;
-  font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.7;
-  color: #cdbb8e; background: #22231d; border-radius: 2px;
-  padding: 0 2px; margin-left: -2px; white-space: pre; outline: none;
+  position: absolute; top: 50%; transform: translateY(-50%);
+  cursor: grab; user-select: none;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 16px; line-height: 1.2;      /* 1.25x the words */
+  color: #fff; background: #2b2f3a; border-radius: 2px;
+  padding: 0 3px; margin-left: -3px; white-space: pre; outline: none;
 }
-.lane .chord-chip:hover { background: #2e3026; }
-.lane .chord-chip:focus { background: #343629; color: #f5e8d0; cursor: text; }
-.lane .chord-chip.dragging { cursor: grabbing; background: #3b3e2d; color: #f5e8d0; z-index: 2; }
+.lane .chord-chip:hover { background: #39405166; background-color: #394051; }
+.lane .chord-chip:focus { background-color: #46506a; cursor: text; }
+.lane .chord-chip.dragging { cursor: grabbing; background-color: #55608a; z-index: 2; }
+/* not a chord yet — it will revert rather than be written out as one */
+.lane .chord-chip.bad { background-color: #4a2525; color: #e4b4b4; }
 .lane .lane-lyric {
   color: #e8d5b5; font-family: 'IBM Plex Mono', monospace; font-size: 13px;
   line-height: 1.7; white-space: pre-wrap; word-break: break-word;
@@ -695,8 +704,10 @@ function renderActive(e) {
                 placeholder="work it out here…">${esc(e.notes || '')}</textarea>
       <div id="notes-lanes" hidden></div>
       <div class="ribbon horz_sep_minor on_top">
-        <span class="tool on" id="rb-chord-rows" onclick="toggleChordRows()"
-              title="show or hide the chord rows">[chord rows]</span>
+        <span class="tool" id="rb-chord-rows" onclick="toggleChordRows()"
+              title="open a chord row above every line">[chord rows]</span>
+        <span class="tool danger" id="rb-clear" onclick="clearNotes()"
+              title="empty the notes — the recording and transcript are untouched">[clear]</span>
       </div>
     </div>`;
   rbRateIdx = 0;                       // a new hunk starts at full speed
@@ -770,7 +781,10 @@ async function saveNotes(id, text) {
 // swallowing a lyric line because it opened with the word "A" would be worse
 // than leaving a chord row showing.
 const CHORD = /^[A-G][#b]?(maj|min|m|dim|aug|sus|add|M)?\d*(sus\d?|add\d+)?(\/[A-G][#b]?)?$/;
-const CHORD_EXTRA = /^(\||\|\||:\||\|:|%|-|N\.?C\.?)$/i;
+// the rest of the chord-sheet vocabulary: bar lines, repeats, counts, and the
+// handful of words that legitimately sit in a chord row
+const CHORD_EXTRA =
+  /^(\||\|\||:\||\|:|%|-|N\.?C\.?|x\d+|\d+x|riff|solo|intro|outro|vamp|break|tacet|rest)$/i;
 
 const isChordRow = line => {
   const t = line.trim().split(/\s+/).filter(Boolean);
@@ -801,6 +815,31 @@ function serializeLanes(lanes) {
   return out.join('\n');
 }
 
+// two taps, because this one is not reversible from inside the page
+let clearArmed = null;
+function clearNotes() {
+  const btn = document.getElementById('rb-clear');
+  const box = document.getElementById('notes-box');
+  if (!btn || !box) return;
+  if (!btn.classList.contains('armed')) {
+    btn.classList.add('armed');
+    btn.textContent = '[clear — sure?]';
+    clearArmed = setTimeout(() => {
+      btn.classList.remove('armed');
+      btn.textContent = '[clear]';
+    }, 4000);
+    return;
+  }
+  clearTimeout(clearArmed);
+  btn.classList.remove('armed');
+  btn.textContent = '[clear]';
+  box.value = '';
+  showCount(0);
+  clearTimeout(notesTimer);
+  saveNotes(activeHunk.id, '');
+  paintChordRows();
+}
+
 let chordRowsOn = false;
 
 function toggleChordRows() {
@@ -829,7 +868,7 @@ function paintChordRows() {
          <div class="chord-row" data-i="${i}">${chipsHTML(r.chord || '')}</div>
          <div class="lane-lyric">${esc(r.lyric)}</div>
        </div>`).join('') || '<div class="lane-lyric" style="color:#444">nothing written yet</div>';
-  lanes.querySelectorAll('.chord-row').forEach(wireChordRow);
+  lanes.querySelectorAll('.chord-row').forEach(row => { wireChordRow(row); placeChips(row); });
   box.hidden = true;
   lanes.hidden = false;
 }
@@ -858,12 +897,20 @@ const lineOf = tokens => {
 
 const chipsHTML = line => tokensOf(line).map(t =>
   `<span class="chord-chip" contenteditable="true" spellcheck="false"
-         style="left:${t.col}ch">${esc(t.text)}</span>`).join('');
+         data-col="${t.col}">${esc(t.text)}</span>`).join('');
 
 const chipsToLine = row => lineOf([...row.querySelectorAll('.chord-chip')].map(c => ({
   text: c.textContent.trim(),
-  col: Math.max(0, Math.round(parseFloat(c.style.left) || 0)),
+  col: Math.max(0, +c.dataset.col || 0),
 })));
+
+// left is set in px from the lyric's character width, not in the chip's own ch
+function placeChips(row) {
+  const chw = chipColWidth(row);
+  row.querySelectorAll('.chord-chip').forEach(c => {
+    c.style.left = ((+c.dataset.col || 0) * chw) + 'px';
+  });
+}
 
 function wireChordRow(row) {
   row.addEventListener('mousedown', ev => {
@@ -871,14 +918,16 @@ function wireChordRow(row) {
     if (!chip) return;
     const chw = chipColWidth(row);
     const startX = ev.clientX;
-    const startCol = parseFloat(chip.style.left) || 0;
+    const startCol = +chip.dataset.col || 0;
     let moved = false;
     const move = e => {
       if (Math.abs(e.clientX - startX) < 3 && !moved) return;
       moved = true;
       chip.classList.add('dragging');
       chip.blur();                                  // dragging is not editing
-      chip.style.left = Math.max(0, Math.round(startCol + (e.clientX - startX) / chw)) + 'ch';
+      const col = Math.max(0, Math.round(startCol + (e.clientX - startX) / chw));
+      chip.dataset.col = col;
+      chip.style.left = (col * chw) + 'px';
     };
     const up = () => {
       document.removeEventListener('mousemove', move);
@@ -901,14 +950,19 @@ function wireChordRow(row) {
     if (ev.target !== row) return;
     const chw = chipColWidth(row);
     const col = Math.max(0, Math.round((ev.clientX - row.getBoundingClientRect().left) / chw));
-    const chip = newChip(col);
+    const chip = newChip(col, row);
     row.appendChild(chip);
     chip.focus();
   });
 
   row.addEventListener('input', ev => {
-    if (!ev.target.closest('.chord-chip')) return;
-    commitLanes();
+    const chip = ev.target.closest('.chord-chip');
+    if (!chip) return;
+    const t = chip.textContent.trim();
+    const ok = !t || CHORD.test(t) || CHORD_EXTRA.test(t) ||
+               CHORD.test(t.charAt(0).toUpperCase() + t.slice(1));
+    chip.classList.toggle('bad', !ok);
+    if (ok) commitLanes();          // only sound chords reach the file
   });
 
   row.addEventListener('keydown', ev => {
@@ -921,8 +975,8 @@ function wireChordRow(row) {
       ev.preventDefault();
       const text = chip.textContent.trim();
       if (!text) return;
-      const col = Math.round(parseFloat(chip.style.left) || 0) + text.length + 1;
-      const next = newChip(col);
+      const col = (+chip.dataset.col || 0) + text.length + 1;
+      const next = newChip(col, row);
       row.appendChild(next);
       next.focus();
       commitLanes();
@@ -933,28 +987,53 @@ function wireChordRow(row) {
     const chip = ev.target.closest('.chord-chip');
     if (!chip) return;
     if (!chip.textContent.trim()) { chip.remove(); commitLanes(); return; }
-    if (/\s/.test(chip.textContent)) { splitChip(chip); commitLanes(); }   // pasted run
+    if (/\s/.test(chip.textContent)) splitChip(chip);                     // pasted run
+    row.querySelectorAll('.chord-chip').forEach(normalizeChip);
+    commitLanes();
   }, true);
 }
 
-function newChip(col) {
+// A chord row is recognised by what is in it, so anything that is not a chord
+// would come back from disk as a lyric line — and every lyric line grows a
+// lane of its own, which is how one stray word turns into a stack of empty
+// rows. Rather than let that reach the file, a chip that cannot be a chord
+// reverts to the last text that could.
+function normalizeChip(chip) {
+  const raw = chip.textContent.trim();
+  if (!raw) { chip.remove(); return; }
+  const fixed = raw.charAt(0).toUpperCase() + raw.slice(1);   // "am" -> "Am"
+  if (CHORD.test(fixed) || CHORD_EXTRA.test(fixed)) {
+    chip.textContent = fixed;
+    chip.dataset.good = fixed;
+    chip.classList.remove('bad');
+    return;
+  }
+  if (chip.dataset.good) {
+    chip.textContent = chip.dataset.good;                     // put back what worked
+  } else {
+    chip.remove();
+  }
+}
+
+function newChip(col, row) {
   const chip = document.createElement('span');
   chip.className = 'chord-chip';
   chip.contentEditable = 'true';
   chip.spellcheck = false;
-  chip.style.left = col + 'ch';
+  chip.dataset.col = col;
+  chip.style.left = (col * chipColWidth(row)) + 'px';
   return chip;
 }
 
 // one chip holding "C F G" is three chords that have not been separated yet
 function splitChip(chip) {
   const row = chip.parentElement;
-  const startCol = Math.round(parseFloat(chip.style.left) || 0);
+  const startCol = +chip.dataset.col || 0;
   const parts = chip.textContent.trim().split(/\s+/).filter(Boolean);
   chip.textContent = parts[0] || '';
   let col = startCol + (parts[0] || '').length + 1;
   for (const p of parts.slice(1)) {
-    const extra = newChip(col);
+    const extra = newChip(col, row);
     extra.textContent = p;
     row.appendChild(extra);
     col += p.length + 1;
