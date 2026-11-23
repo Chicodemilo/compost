@@ -316,20 +316,21 @@ textarea.notes::placeholder { color: #3a3a3a; }
 /* the row keeps the lyric's font so its character grid is the lyric's grid,
    even though the chips sitting on it are bigger */
 .lane .chord-row {
-  position: relative; height: 22px; cursor: text;
+  position: relative; height: 24px; cursor: text;
   font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.7;
+  background-color: #242424; border-radius: 2px;   /* the whole row, not the chords */
 }
 .lane .chord-chip {
   position: absolute; top: 50%; transform: translateY(-50%);
   cursor: grab; user-select: none;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 16px; line-height: 1.2;      /* 1.25x the words */
-  color: #fff; background: #2b2f3a; border-radius: 2px;
+  color: #a8bade; background: transparent; border-radius: 2px;
   padding: 0 3px; margin-left: -3px; white-space: pre; outline: none;
 }
-.lane .chord-chip:hover { background: #39405166; background-color: #394051; }
-.lane .chord-chip:focus { background-color: #46506a; cursor: text; }
-.lane .chord-chip.dragging { cursor: grabbing; background-color: #55608a; z-index: 2; }
+.lane .chord-chip:hover { background-color: #333; color: #c6d4f0; }
+.lane .chord-chip:focus { background-color: #3a3a3a; color: #e8f0ff; cursor: text; }
+.lane .chord-chip.dragging { cursor: grabbing; background-color: #44476a; color: #fff; z-index: 2; }
 /* not a chord yet — it will revert rather than be written out as one */
 .lane .chord-chip.bad { background-color: #4a2525; color: #e4b4b4; }
 .lane .lane-lyric {

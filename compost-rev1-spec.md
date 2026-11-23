@@ -252,9 +252,10 @@ Single HTML file. Served locally. Not a webapp.
   the monospace grid and redraws from the committed line on drop, so what you see and what is
   on disk can never drift. Two chords dropped on top of each other are pushed apart, never
   silently stacked.
-- Chips are **bigger than the words and white**, positioned in pixels measured from the
-  *lyric's* character width — their own `ch` would be wrong at a larger size, and the grid
-  belongs to the line underneath.
+- **The whole chord row carries a lighter grey band**, full width, so the lane reads as a lane
+  rather than a few floating labels. The chord names sit on it in pale blue at 1.25x the words.
+- Chips are positioned in pixels measured from the *lyric's* character width — their own `ch`
+  would be wrong at a larger size, and the grid belongs to the line underneath.
 - **A chord row only admits chords.** Because a chord row is recognised by what is in it,
   anything else comes back from disk as a lyric line — and every lyric line grows a lane of
   its own, so one stray word becomes a stack of empty rows that grows each time the view is
