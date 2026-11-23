@@ -91,7 +91,10 @@ body {
   font-size: 14px; color: #3a3a3a; cursor: pointer; user-select: none;
   letter-spacing: 0; line-height: 1; flex-shrink: 0;
 }
-.mark { margin-left: auto; padding-left: 10px; }
+.mark { padding-left: 10px; }
+/* the two row controls travel as one unit, so a wrapping row can never strand
+   [archive] on a line by itself while the mark stays pinned right */
+.hunk .ctrls { margin-left: auto; display: inline-flex; align-items: baseline; flex-shrink: 0; }
 .del { padding-left: 6px; color: #7a4e24; }
 .mark:hover { color: #8f9f6b; }
 .mark.on { color: #8f9f6b; }
@@ -186,8 +189,29 @@ body {
    what is left over rather than staying its usual 150px */
 #active.big textarea.notes { flex: 1; min-height: 200px; }
 #active.big .full { max-height: 26vh; }
-@media (max-width: 600px)  { #active.big { padding: 5px; } }
 @media (min-width: 1200px) { #active.big { padding: 40px; } }
+/* phone. a first pass, not a finished design: claw back the side padding,
+   let the rows wrap instead of squeezing the tags, and shrink the panels so
+   the transcript is not reading through a letterbox. */
+@media (max-width: 600px) {
+  .header { padding: 14px 14px 12px; gap: 10px; flex-wrap: wrap; }
+  .header h1 { font-size: 18px; letter-spacing: 2px; }
+  .header .stats { font-size: 9px; }
+  .searchbar { padding: 14px; }
+  #results { padding: 8px 14px 48px; }
+  #active, #classes-panel { padding: 14px; }
+  #active.big { padding: 5px; }
+  .active-box { padding: 12px; }
+  .hunk .meta-row { flex-wrap: wrap; gap: 8px 10px; max-width: none; }
+  /* once the row wraps, the pair rides with the content instead of pinning right */
+  .hunk .ctrls { margin-left: 0; }
+  .hunk .mark { padding-left: 0; }
+  .deets { grid-template-columns: 70px 1fr; gap: 4px 10px; }
+  .full { max-height: 220px; }
+  .year-header { font-size: 14px; letter-spacing: 2px; }
+  .class-row { flex-wrap: wrap; }
+  .class-row .cname, .class-row input.cname-input { width: 100%; }
+}
 #active.open { display: block; }
 .active-box {
   border: 1px solid #2a2a2a; border-radius: 2px;
@@ -307,7 +331,7 @@ function hunkHTML(e) {
         <span class="cls">${e.class}</span>
         ${(e.tags || '').split(',').filter(Boolean).map(t => `<span class="tag">${t}</span>`).join('')}
         <span class="dur">${fmtDur(e.duration)}</span>
-        ${markHTML(e)}${delHTML(e)}
+        <span class="ctrls">${markHTML(e)}${delHTML(e)}</span>
       </div>
       <div class="snip">${e.snip || '<span style="color:#444">(no transcript)</span>'}</div>
       <audio controls preload="none" src="/audio/${encodeURIComponent(e.audio_path.replace(/^audio\//,''))}"></audio>

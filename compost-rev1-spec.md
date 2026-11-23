@@ -233,6 +233,11 @@ Single HTML file. Served locally. Not a webapp.
   pile stays visible and dimmed around the edges, carries a border and a shadow, and closes on
   a click in the dimmed margin as well as on escape. Filling the viewport edge to edge read as
   a navigation, and the whole point is that it is something laid on top which you can put down.
+- **Phone is a first pass, not a finished design.** Under 600px the side padding comes in, the
+  hunk row wraps instead of squeezing its tags, and the panels shrink. The two row controls sit
+  in one `.ctrls` wrapper so a wrapping row can never strand `[archive]` on a line by itself
+  while the mark stays pinned right. Known rough edges: the metadata grid is cramped and the
+  modal at 5px inset barely reads as a modal.
 - **Two separator weights, and only two.** `horz_sep_minor` (1px) divides items inside a group;
   `horz_sep_major` (2px) divides the groups — under the header, between the active post and the
   search, and between the years. Every grey rule across the page is one of these two classes; a
