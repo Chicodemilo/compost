@@ -15,9 +15,15 @@ body {
   font-size: 13px;
   min-height: 100vh;
 }
+/* The only two horizontal rules on the page. Minor divides items inside a
+   group, major divides the groups themselves. Nothing else draws a grey line
+   across the page — box outlines are a different thing and stay as they are. */
+.horz_sep_minor { border-bottom: 1px solid #333; }
+.horz_sep_major { border-bottom: 2px solid #333; }
+/* same rule on the upper edge, where the divider belongs to the block below it */
+.horz_sep_minor.on_top { border-bottom: 0; border-top: 1px solid #333; }
 .header {
   padding: 20px 24px 16px;
-  border-bottom: 1px solid #1a1a1a;
   display: flex; align-items: baseline; gap: 16px;
   position: sticky; top: 0; background: #0a0a0a; z-index: 50;
 }
@@ -28,7 +34,7 @@ body {
 }
 .header .sub { font-size: 11px; color: #555; letter-spacing: 2px; text-transform: uppercase; }
 .header .stats { margin-left: auto; font-size: 10px; color: #444; letter-spacing: 1px; }
-.searchbar { padding: 18px 24px; border-bottom: 1px solid #1a1a1a; }
+.searchbar { padding: 18px 24px; }
 .searchbar input {
   width: 100%; max-width: 640px;
   background: #111; border: 1px solid #2a2a2a; border-radius: 2px;
@@ -70,7 +76,7 @@ body {
 .del.back:hover { color: #8f9f6b; }
 .active-box .mark { margin-left: 0; padding-left: 0; }
 #results { padding: 8px 24px 60px; }
-.entry { border-bottom: 1px solid #333; padding: 14px 0; }
+.entry { padding: 14px 0; }
 /* the row's controls track the text column instead of the window edge —
    on a wide screen an auto margin strands them yards from the entry */
 .entry .meta-row { display: flex; gap: 14px; align-items: baseline;
@@ -91,7 +97,7 @@ body {
 .empty { color: #555; padding: 40px 0; letter-spacing: 2px; text-transform: uppercase; font-size: 11px; }
 .year-header {
   cursor: pointer; user-select: none;
-  padding: 14px 0; border-bottom: 1px solid #1a1a1a;
+  padding: 14px 0;
   font-family: 'Special Elite', cursive;
   font-size: 16px; color: #e8d5b5; letter-spacing: 3px;
 }
@@ -105,7 +111,7 @@ body {
   cursor: pointer; user-select: none;
 }
 .header .classes-toggle:hover { color: #c8b89a; }
-#classes-panel { display: none; padding: 16px 24px; border-bottom: 1px solid #1a1a1a; background: #0d0d0c; }
+#classes-panel { display: none; padding: 16px 24px; background: #0d0d0c; }
 #classes-panel.open { display: block; }
 #classes-panel .note { font-size: 10px; color: #555; letter-spacing: 1px; margin-bottom: 12px; text-transform: uppercase; }
 .class-row { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px; max-width: 900px; }
@@ -135,7 +141,7 @@ body {
   cursor: pointer; user-select: none;
 }
 .header .random:hover { color: #c8b89a; }
-#active { display: none; padding: 16px 24px; border-bottom: 1px solid #1a1a1a; }
+#active { display: none; padding: 16px 24px; }
 #active.open { display: block; }
 .active-box {
   border: 1px solid #2a2a2a; border-radius: 2px;
@@ -159,11 +165,11 @@ body {
 .pathlink:hover { color: #e8d5b5; border-bottom-color: #e8d5b5; }
 .full {
   max-height: 340px; overflow-y: auto; line-height: 1.7; white-space: pre-wrap;
-  border-top: 1px solid #1a1a1a; padding-top: 12px; color: #c8b89a;
+  padding-top: 12px; color: #c8b89a;
 }
 .notes-head {
   display: flex; align-items: baseline; gap: 10px;
-  margin-top: 14px; padding-top: 12px; border-top: 1px solid #1a1a1a;
+  margin-top: 14px; padding-top: 12px;
 }
 .notes-head .lbl {
   font-family: 'Special Elite', cursive; font-size: 12px; color: #e8d5b5;
@@ -194,18 +200,18 @@ textarea.notes::placeholder { color: #3a3a3a; }
 </style>
 </head>
 <body>
-<div class="header">
+<div class="header horz_sep_major">
   <h1>Compost</h1>
   <span class="stats" id="stats"></span>
   <span class="random" onclick="randomPost()">random</span>
   <span class="classes-toggle" onclick="toggleClasses()">classes</span>
 </div>
-<div id="classes-panel">
+<div id="classes-panel" class="horz_sep_minor">
   <div class="note">edits fall forward — the clerk files future memos by these; already-filed entries keep their label</div>
   <div id="class-rows"></div>
 </div>
-<div id="active"></div>
-<div class="searchbar">
+<div id="active" class="horz_sep_major"></div>
+<div class="searchbar horz_sep_minor">
   <input id="q" type="search" placeholder="search the pile…" autofocus autocomplete="off">
   <div id="filters">
     <div id="class-chips"></div>
@@ -237,7 +243,7 @@ function fmtDur(s) {
 
 function entryHTML(e) {
   return `
-    <div class="entry">
+    <div class="entry horz_sep_minor">
       <div class="meta-row">
         <span class="date pick" onclick="setActive('${e.id}')"
               title="make this the active post">${fmtDate(e.created_at)}</span>
@@ -394,7 +400,7 @@ async function showYears() {
   renderChips(data.classes);
   results.innerHTML = data.years.map(y => `
     <div class="year">
-      <div class="year-header" onclick="toggleYear('${y.year}')">
+      <div class="year-header horz_sep_major" onclick="toggleYear('${y.year}')">
         <span class="arrow">&#9656;</span>${y.year} <span class="count">· ${y.count}</span>
       </div>
       <div class="year-body" id="yr-${y.year}"></div>
@@ -532,8 +538,8 @@ function renderActive(e) {
       <div class="deets">${deetRows(e)}</div>
       <audio controls preload="none"
              src="/audio/${encodeURIComponent(e.audio_path.replace(/^audio\//, ''))}"></audio>
-      <div class="full">${esc(e.transcript) || '<span style="color:#444">(no transcript)</span>'}</div>
-      <div class="notes-head">
+      <div class="full horz_sep_minor on_top">${esc(e.transcript) || '<span style="color:#444">(no transcript)</span>'}</div>
+      <div class="notes-head horz_sep_minor on_top">
         <span class="lbl">notes</span>
         <span class="count" id="notes-count"></span>
         <span class="state" id="notes-state"></span>

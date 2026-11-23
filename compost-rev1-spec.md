@@ -209,6 +209,10 @@ Single HTML file. Served locally. Not a webapp.
 - Filter chips: class, date range, **the mark**, and **hidden** — separate axes, each
   filtered on its own
 - Results: date, class, tags, transcript snippet, inline `<audio controls>` per row
+- **Two separator weights, and only two.** `horz_sep_minor` (1px) divides items inside a group;
+  `horz_sep_major` (2px) divides the groups — under the header, between the active post and the
+  search, and between the years. Both the same grey. Every grey rule across the page is one of
+  these two classes; a box outline is a different thing and is not one of them.
 - **Opens on `compost`, not on "all" and not on the classified folders.** Classified material is
   already findable. The unresolved pile is the only thing that benefits from being stumbled over.
 - **`surprise me` button** — pulls one random entry from `compost`. Random is random: the
