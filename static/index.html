@@ -287,7 +287,25 @@ textarea.notes::placeholder { color: #3a3a3a; }
 }
 .ribbon .tool:hover { color: #e8d5b5; }
 .ribbon .tool.on { color: #8f9f6b; }
-.ribbon .rb-time { margin-left: auto; font-size: 10px; color: #555; letter-spacing: 1px; }
+.ribbon .rb-time, .transport .rb-time {
+  margin-left: auto; font-size: 10px; color: #555; letter-spacing: 1px;
+}
+/* transport belongs with the player, not with the notes tools */
+.transport { display: flex; align-items: center; gap: 14px; margin-top: 6px; max-width: 420px; }
+.transport .tool {
+  font-size: 11px; color: #7a8ab8; cursor: pointer; user-select: none; white-space: nowrap;
+}
+.transport .tool:hover { color: #e8d5b5; }
+.transport .tool.on { color: #8f9f6b; }
+/* the read pane stands in for the textarea while chord rows are hidden —
+   you cannot sensibly type into text that is concealing some of its lines */
+pre.notes-read {
+  width: 100%; margin-top: 8px; height: 150px; overflow: auto;
+  background: #0f0f0f; border: 1px solid #2a2a2a; border-radius: 2px;
+  color: #e8d5b5; font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+  line-height: 1.7; padding: 10px 12px; white-space: pre-wrap;
+}
+#active.big pre.notes-read { flex: 1; min-height: 200px; }
 .hunk .title, .active-box .title { color: #e8d5b5; font-size: 12px; letter-spacing: 1px; }
 .hunk .title.none, .active-box .title.none { color: #3a3a3a; font-style: italic; letter-spacing: 0; }
 .hunk .date.pick { cursor: pointer; }
@@ -638,6 +656,13 @@ function renderActive(e) {
       <div class="deets">${deetRows(e)}</div>
       <audio controls preload="none"
              src="/audio/${encodeURIComponent(e.audio_path.replace(/^audio\//, ''))}"></audio>
+      <div class="transport">
+        <span class="tool" id="rb-play" onclick="rbPlay()" title="play from where you left off">[play]</span>
+        <span class="tool" onclick="rbSeek(-5)" title="back five seconds">[-5s]</span>
+        <span class="tool" id="rb-loop" onclick="rbLoop()" title="keep it going round">[loop]</span>
+        <span class="tool" id="rb-rate" onclick="rbRate()" title="slow it down to catch the words">[1x]</span>
+        <span class="rb-time" id="rb-time">0:00</span>
+      </div>
       <div class="full horz_sep_minor on_top">${esc(e.transcript) || '<span style="color:#444">(no transcript)</span>'}</div>
       <div class="notes-head horz_sep_minor on_top">
         <span class="lbl">notes</span>
@@ -646,16 +671,16 @@ function renderActive(e) {
       </div>
       <textarea class="notes" id="notes-box" spellcheck="true" maxlength="${MAX_NOTES}"
                 placeholder="work it out here…">${esc(e.notes || '')}</textarea>
+      <pre class="notes-read" id="notes-read" hidden></pre>
       <div class="ribbon horz_sep_minor on_top">
-        <span class="tool" id="rb-play" onclick="rbPlay()" title="play from where you left off">[play]</span>
-        <span class="tool" onclick="rbSeek(-5)" title="back five seconds">[-5s]</span>
-        <span class="tool" id="rb-loop" onclick="rbLoop()" title="keep it going round">[loop]</span>
-        <span class="tool" id="rb-rate" onclick="rbRate()" title="slow it down to catch the words">[1x]</span>
-        <span class="rb-time" id="rb-time">0:00</span>
+        <span class="tool on" id="rb-chords" onclick="toggleChords()"
+              title="show or hide the chord rows">[chords]</span>
       </div>
     </div>`;
   rbRateIdx = 0;                       // a new hunk starts at full speed
   wireRibbon(activeWrap.querySelector('audio'));
+  chordsOn = true;                     // and with its chords showing
+  paintChords();
   const box = document.getElementById('notes-box');
   showCount(box.value.length);
   box.addEventListener('input', () => {
@@ -717,7 +742,48 @@ async function saveNotes(id, text) {
   }
 }
 
-// ---- ribbon: transport for the hunk you are writing against ----
+// ---- chord rows ----
+// A chord row is a line that is nothing but chords: every token has to parse,
+// so "G7 Am C" is one and "Go to the chorus" is not. Deliberately strict —
+// swallowing a lyric line because it opened with the word "A" would be worse
+// than leaving a chord row showing.
+const CHORD = /^[A-G][#b]?(maj|min|m|dim|aug|sus|add|M)?\d*(sus\d?|add\d+)?(\/[A-G][#b]?)?$/;
+const CHORD_EXTRA = /^(\||\|\||:\||\|:|%|-|N\.?C\.?)$/i;
+
+const isChordRow = line => {
+  const t = line.trim().split(/\s+/).filter(Boolean);
+  return t.length > 0 && t.every(x => CHORD.test(x) || CHORD_EXTRA.test(x));
+};
+
+const stripChords = text =>
+  text.split('\n').filter(l => !isChordRow(l)).join('\n');
+
+let chordsOn = true;
+
+function toggleChords() {
+  chordsOn = !chordsOn;
+  paintChords();
+}
+
+function paintChords() {
+  const box = document.getElementById('notes-box');
+  const read = document.getElementById('notes-read');
+  const btn = document.getElementById('rb-chords');
+  if (!box || !read) return;
+  btn?.classList.toggle('on', chordsOn);
+  if (btn) btn.title = chordsOn ? 'hide the chord rows' : 'show the chord rows — editing comes back too';
+  if (chordsOn) {
+    read.hidden = true;
+    box.hidden = false;
+  } else {
+    flushNotes();                       // never hide unsaved text behind a view switch
+    read.textContent = stripChords(box.value) || '(nothing but chords)';
+    box.hidden = true;
+    read.hidden = false;
+  }
+}
+
+// ---- transport for the hunk you are writing against ----
 const rbAudio = () => document.querySelector('.active-box audio');
 const RATES = [1, 0.75, 0.5];
 let rbRateIdx = 0;

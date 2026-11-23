@@ -233,13 +233,17 @@ Single HTML file. Served locally. Not a webapp.
   pile stays visible and dimmed around the edges, carries a border and a shadow, and closes on
   a click in the dimmed margin as well as on escape. Filling the viewport edge to edge read as
   a navigation, and the whole point is that it is something laid on top which you can put down.
-- **The ribbon** — a strip of tools stuck to the bottom of the big view, sticky so it survives
-  scrolling. It exists because the modal created the problem: the player sits at the top of the
-  box and you write at the bottom, so by the time you are working the tape is out of reach.
-  First set is transport — `[play]`, `[-5s]`, `[loop]`, and a rate cycle through 1x / 0.75x /
-  0.5x for catching mumbled words. It **mirrors** the `<audio>` element rather than owning it,
-  listening for play and pause, so the controls at the top and bottom can never disagree.
-  Hidden outside the big view, where the player is right there.
+- **The ribbon is for notes tools**, not playback. It sticks to the bottom of the big view,
+  where the writing happens. Transport lives with the player instead — `[play]`, `[-5s]`,
+  `[loop]` and a rate cycle through 1x / 0.75x / 0.5x for catching mumbled words — and
+  **mirrors** the `<audio>` element rather than owning it, listening for play and pause so the
+  two sets of controls can never disagree.
+- **First ribbon tool: `[chords]`**, which shows or hides the chord rows. A chord row is a line
+  that is *nothing but* chords, so `G7 Am C/G` is one and `A kettle on the stove` is not. The
+  test is deliberately strict: swallowing a lyric line because it opened with the word "A"
+  would be worse than leaving a chord row showing. Bar lines, `%` and `N.C.` count as chords.
+- Hiding chords swaps the textarea for a read-only pane, because you cannot sensibly type into
+  text that is concealing some of its lines. Unsaved work is flushed before the swap.
 - **Phone is a first pass, not a finished design.** Under 600px the side padding comes in, the
   hunk row wraps instead of squeezing its tags, and the panels shrink. The two row controls sit
   in one `.ctrls` wrapper so a wrapping row can never strand `[archive]` on a line by itself
