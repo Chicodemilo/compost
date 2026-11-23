@@ -296,7 +296,7 @@ textarea.notes::placeholder { color: #3a3a3a; }
 .ribbon .rb-fill { flex: 1; overflow: hidden; }   /* underscores run to the end */
 .ribbon .rb-tools {
   display: flex; align-items: center; gap: 10px;
-  padding: 6px 0 0 4px;
+  padding: 11px 0 0 4px;          /* room under the folder edge before the tools */
 }
 .ribbon .rb-hint { font-size: 9px; color: #3a3a3a; letter-spacing: 1px; }
 .ribbon .rb-hint.nag { color: #b8753a; }
@@ -899,7 +899,9 @@ function paintRibbon() {
   });
   parts.push(`<span class="rb-rule rb-fill">${'_'.repeat(300)}</span>`);
   tabs.innerHTML = parts.join('');
-  tools.innerHTML = TAB_TOOLS[activeTab]();
+  // a bar opens the row as well as closing each group, so the tools read as
+  // sitting between dividers rather than trailing off the left edge
+  tools.innerHTML = '<span class="rb-sep">|</span>' + TAB_TOOLS[activeTab]();
 }
 
 function selectTab(id) {

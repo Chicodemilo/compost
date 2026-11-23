@@ -271,7 +271,9 @@ Single HTML file. Served locally. Not a webapp.
   the same as the open tab and runs unbroken from end to end. Only the shut tabs are dimmed.
   That is what makes the strip read as one folder with a tab on it, rather than two rows of
   controls that happen to sit together.
-- The tools row belongs to whichever tab is open, with `|` marking off each group of tools.
+- The tools row belongs to whichever tab is open. It **opens and closes with a `|`**, with one
+  between each group, so the tools read as sitting between dividers rather than trailing off
+  the left edge.
 - **songs** holds the chord rows: the toggle reads `[show]` or `[hide]` — whichever it will do
   next, never both — plus `[clear]`.
 - **text** holds markdown marks applied to the highlighted words: `[bold]` and `[italic]`.
