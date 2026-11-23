@@ -227,6 +227,10 @@ Single HTML file. Served locally. Not a webapp.
   Ascii on purpose: the unicode expand glyphs either tofu in this font stack or fall through to
   the emoji font, and the dash is what makes `[<->]` read as an arrow rather than an empty tag.
   You reach it from the list via the active hunk; there is deliberately no direct route yet.
+- The big view is **a modal, not a second page**. It insets 25px (5px under 600px wide) so the
+  pile stays visible and dimmed around the edges, carries a border and a shadow, and closes on
+  a click in the dimmed margin as well as on escape. Filling the viewport edge to edge read as
+  a navigation, and the whole point is that it is something laid on top which you can put down.
 - **Two separator weights, and only two.** `horz_sep_minor` (1px) divides items inside a group;
   `horz_sep_major` (2px) divides the groups — under the header, between the active post and the
   search, and between the years. Every grey rule across the page is one of these two classes; a
