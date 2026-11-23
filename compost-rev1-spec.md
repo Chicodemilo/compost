@@ -356,6 +356,19 @@ Do not build these. They are real and they come later.
   far as this goes — a flag, not a cycle. There is still **no kill state**: `hidden` says where
   something is shown, never what it is worth. Nothing may ever record a judgment against an
   hunk, and nothing may ever delete one.
+- **Addressable hunks.** The page currently never touches the URL: the active hunk lives in
+  `localStorage`, and the big view, the search text, the chips and the unfolded years live only
+  in memory. So there is no way to link to a hunk, bookmark one, open two in separate tabs, or
+  use the back button.
+
+  To build: **the URL carries state, not a route.** No per-hunk page — the same single page,
+  with `?hunk=<id>` and a flag for big, written with `replaceState` so browsing does not pile up
+  history, plus a `popstate` handler. Filters can ride along the same way, which makes a
+  filtered view shareable with yourself across tabs. The wrinkle to settle first: once the URL
+  names a hunk, `localStorage` is a second source of truth for the same fact, so the URL must
+  win when present and `localStorage` must drop back to being only the "what was I doing"
+  answer for a bare visit. Worth doing when hunks start being things you return to on purpose
+  rather than stumble into — which is to say, alongside the writing surface below.
 - **Growing a note into the finished thing** — notes as a writing surface rather than an
   annotation, so a song fragment in the pile becomes the song. Compost and seed in one place,
   then grow it. The field already holds prose and already searches, so the groundwork is laid;
