@@ -276,6 +276,11 @@ Single HTML file. Served locally. Not a webapp.
   the left edge.
 - **songs** holds the chord rows: the toggle reads `[show]` or `[hide]` — whichever it will do
   next, never both — plus `[clear]`.
+- **circle of 5ths** (songs tab) takes the right-hand side of the writing area, sliding in and
+  out rather than appearing. It is drawn as text, C at twelve o'clock and a fifth clockwise each
+  step, so it sits on the same character grid as everything else here. The panel is clipped by
+  the writing area, which is what keeps its shadow falling on the notes rather than the page
+  behind. What it *does* is not designed yet — for now it is a wheel to look at.
 - **text** holds markdown marks applied to the highlighted words: `[bold]` and `[italic]`.
   Notes are `.md` on disk, so these are the markdown the file already speaks. Applying a mark to
   text that already has it takes it off again, so the buttons toggle rather than piling markers

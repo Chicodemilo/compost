@@ -189,7 +189,7 @@ body {
 }
 /* the point of filling the screen is room to write, so the notes box takes
    what is left over rather than staying its usual 150px */
-#active.big textarea.notes { flex: 1; min-height: 200px; }
+
 #active.big .full { max-height: 26vh; }
 @media (min-width: 1200px) { #active.big { padding: 40px; } }
 /* phone. a first pass, not a finished design: claw back the side padding,
@@ -265,10 +265,15 @@ body {
 .notes-head .state.saving { color: #7a8ab8; }
 .notes-head .state.saved { color: #8f9f6b; }
 .notes-head .state.failed { color: #b87a7a; }
+/* the panel is absolutely placed in here and clipped by it, so its shadow
+   falls inside the writing area and never bleeds onto the page behind */
+#notes-area { position: relative; overflow: hidden; margin-top: 8px; }
+#active.big #notes-area { flex: 1; display: flex; flex-direction: column; min-height: 200px; }
+#active.big #notes-area > textarea.notes, #active.big #notes-area > #notes-lanes { flex: 1; }
 /* fixed height on purpose: it scrolls, it does not grow, so the box never
    pushes the transcript and the audio off the screen as notes pile up */
 textarea.notes {
-  width: 100%; margin-top: 8px; height: 150px; resize: none; overflow-y: auto;
+  width: 100%; margin-top: 0; height: 150px; resize: none; overflow-y: auto;
   background: #111; border: 1px solid #2a2a2a; border-radius: 2px;
   color: #e8d5b5; font-family: 'IBM Plex Mono', monospace; font-size: 13px;
   line-height: 1.7; padding: 10px 12px; outline: none;
@@ -327,11 +332,28 @@ textarea.notes::placeholder { color: #3a3a3a; }
    not another line of text — a lane, which is why the words are read-only here
    and you go back to the plain box to change them. */
 #notes-lanes {
-  width: 100%; margin-top: 8px; height: 150px; overflow: auto;
+  width: 100%; margin-top: 0; height: 150px; overflow: auto;
   background: #0f0f0f; border: 1px solid #2a2a2a; border-radius: 2px;
   padding: 10px 12px;
 }
-#active.big #notes-lanes { flex: 1; min-height: 200px; }
+
+/* circle of fifths: takes the right-hand side of the writing area, slides in
+   and out rather than appearing, and is clipped by #notes-area so the shadow
+   only ever darkens the notes */
+#fifths {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 290px;
+  background: #000; border: 1px solid #2e2e2e; border-radius: 2px;
+  box-shadow: 0 0 30px 10px rgba(0, 0, 0, 0.92);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding-top: 22px;              /* sits up top; the room below is for what comes next */
+  transform: translateX(110%); transition: transform .22s ease-out;
+  pointer-events: none;
+}
+#fifths.open { transform: translateX(0); pointer-events: auto; }
+#fifths .wheel {
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.5;
+  color: #c8b89a; white-space: pre; margin: 0;
+}
 .lane { margin-bottom: 4px; }
 /* the chord row is a grid, not a text field. a chord sits at a character
    column, which is exactly how a chord sheet has always worked — so dragging
@@ -723,9 +745,12 @@ function renderActive(e) {
         <span class="count" id="notes-count"></span>
         <span class="state" id="notes-state"></span>
       </div>
-      <textarea class="notes" id="notes-box" spellcheck="true" maxlength="${MAX_NOTES}"
-                placeholder="work it out here…">${esc(e.notes || '')}</textarea>
-      <div id="notes-lanes" hidden></div>
+      <div id="notes-area">
+        <textarea class="notes" id="notes-box" spellcheck="true" maxlength="${MAX_NOTES}"
+                  placeholder="work it out here…">${esc(e.notes || '')}</textarea>
+        <div id="notes-lanes" hidden></div>
+        <aside id="fifths"><pre class="wheel">${FIFTHS}</pre></aside>
+      </div>
       <div class="ribbon">
         <div class="rb-tabs" id="rb-tabs"></div>
         <div class="rb-tools" id="rb-tools"></div>
@@ -734,7 +759,9 @@ function renderActive(e) {
   rbRateIdx = 0;                       // a new hunk starts at full speed
   wireRibbon(activeWrap.querySelector('audio'));
   chordRowsOn = false;                 // and in the plain box, writing words
+  fifthsOn = false;                    // and with the wheel put away
   paintChordRows();
+  paintFifths();
   paintRibbon();
   const box = document.getElementById('notes-box');
   showCount(box.value.length);
@@ -866,6 +893,30 @@ function clearChordRows() {
   paintChordRows();
 }
 
+// ---- circle of fifths ----
+// C at twelve, a fifth clockwise each step: C G D A E B F# Db Ab Eb Bb F.
+// Drawn as text so it sits on the same grid as everything else here.
+const FIFTHS = `            C
+     F             G
+  Bb                 D
+ Eb                   A
+  Ab                 E
+     Db           B
+           F#`;
+
+let fifthsOn = false;
+
+function toggleFifths() {
+  fifthsOn = !fifthsOn;
+  paintFifths();
+  paintRibbon();
+}
+
+function paintFifths() {
+  const panel = document.getElementById('fifths');
+  if (panel) panel.classList.toggle('open', fifthsOn);
+}
+
 // ---- the ribbon: tabs of tools ----
 const TABS = [
   { id: 'songs', label: 'songs' },
@@ -881,6 +932,10 @@ const TAB_TOOLS = {
           title="a chord row above every return">${chordRowsOn ? '[hide]' : '[show]'}</span>
     <span class="tool danger" id="rb-clear" onclick="clearChordRows()"
           title="take out every chord row — the words are left alone">[clear]</span>
+    <span class="rb-sep">|</span>
+    <span class="tool-label">circle of 5ths</span>
+    <span class="tool" id="rb-fifths" onclick="toggleFifths()"
+          title="the wheel, down the right of the sheet">${fifthsOn ? '[close]' : '[open]'}</span>
     <span class="rb-sep">|</span>`,
   text: () => `
     <span class="tool" onclick="wrapSelection('**')" title="**bold** the selected words">[bold]</span>
