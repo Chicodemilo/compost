@@ -264,9 +264,13 @@ Single HTML file. Served locally. Not a webapp.
   The grammar covers what people actually write there: chords with extensions and slash basses,
   bar lines, `%`, `N.C.`, `x2`, and words like riff, solo, intro, vamp. Lowercase is fixed up,
   so `am` becomes `Am`.
-- The ribbon is a **tab strip**: `/ songs \` and `/ text \`, drawn with slashes so it reads as
-  tabs in a typewriter face without a box-drawing character that might not render. The active
-  tab's tools sit to the right of a `|`.
+- The ribbon is **two rows: tabs above, tools below.** The tabs are drawn with slashes and an
+  underscore rule — `/songs\  /text\______________` — so it reads as a tab strip in a
+  typewriter face without a box-drawing character that might not render.
+- **The rule breaks just past the active tab's right edge**, and nowhere else. That one gap is
+  what makes it read as a tab rather than a button: the open one has nothing ruled across its
+  mouth. When the last tab is the open one the rule simply stops there.
+- The tools row belongs to whichever tab is open, with `|` marking off each group of tools.
 - **songs** holds the chord rows: the toggle reads `[show]` or `[hide]` — whichever it will do
   next, never both — plus `[clear]`.
 - **text** holds markdown marks applied to the highlighted words: `[bold]` and `[italic]`.

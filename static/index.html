@@ -277,21 +277,27 @@ textarea.notes::placeholder { color: #3a3a3a; }
    writing against a tape you can no longer reach */
 .ribbon { display: none; }
 #active.big .ribbon {
-  display: flex; align-items: center; gap: 10px;
+  display: block;
   position: sticky; bottom: 0; margin-top: 10px;
-  padding: 10px 2px 4px; background-color: #0d0d0c;
+  padding: 8px 2px 4px; background-color: #0d0d0c;
 }
 /* ascii tabs: the slashes do the work, so it reads as a tab strip in a
-   typewriter face without a single box-drawing character to go missing */
-.ribbon .rb-tabs { display: flex; align-items: center; gap: 2px; }
-.ribbon .rb-tab {
+   typewriter face without a single box-drawing character to go missing.
+   the rule is continuous — it runs under every tab and on to the end. */
+.ribbon .rb-tabs {
+  display: flex; align-items: flex-end;
   font-family: 'IBM Plex Mono', monospace; font-size: 11px;
-  color: #4a4a4a; cursor: pointer; user-select: none; white-space: pre;
-  padding: 2px 0;
+  white-space: pre; user-select: none; overflow: hidden;
 }
+.ribbon .rb-tab { color: #4a4a4a; cursor: pointer; }
 .ribbon .rb-tab:hover { color: #8a8a8a; }
-.ribbon .rb-tab.active { color: #e8d5b5; background-color: #242424; border-radius: 2px 2px 0 0; }
-.ribbon .rb-tools { display: flex; align-items: center; gap: 10px; }
+.ribbon .rb-tab.active { color: #e8d5b5; background-color: #242424; }
+.ribbon .rb-rule { color: #2e2e2e; }
+.ribbon .rb-fill { flex: 1; overflow: hidden; }   /* underscores run to the end */
+.ribbon .rb-tools {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 0 0 4px;
+}
 .ribbon .rb-hint { font-size: 9px; color: #3a3a3a; letter-spacing: 1px; }
 .ribbon .rb-hint.nag { color: #b8753a; }
 .ribbon .rb-sep { color: #333; user-select: none; margin: 0 6px; }
@@ -717,10 +723,9 @@ function renderActive(e) {
       <textarea class="notes" id="notes-box" spellcheck="true" maxlength="${MAX_NOTES}"
                 placeholder="work it out here…">${esc(e.notes || '')}</textarea>
       <div id="notes-lanes" hidden></div>
-      <div class="ribbon horz_sep_minor on_top">
-        <span class="rb-tabs" id="rb-tabs"></span>
-        <span class="rb-sep">|</span>
-        <span class="rb-tools" id="rb-tools"></span>
+      <div class="ribbon">
+        <div class="rb-tabs" id="rb-tabs"></div>
+        <div class="rb-tools" id="rb-tools"></div>
       </div>
     </div>`;
   rbRateIdx = 0;                       // a new hunk starts at full speed
@@ -867,13 +872,16 @@ let activeTab = 'songs';
 
 const TAB_TOOLS = {
   songs: () => `
+    <span class="tool-label">chord rows</span>
     <span class="tool" id="rb-chord-rows" onclick="toggleChordRows()"
-          title="a chord row above every return">${chordRowsOn ? '[hide]' : '[show]'} chord rows</span>
+          title="a chord row above every return">${chordRowsOn ? '[hide]' : '[show]'}</span>
     <span class="tool danger" id="rb-clear" onclick="clearChordRows()"
-          title="take out every chord row — the words are left alone">[clear]</span>`,
+          title="take out every chord row — the words are left alone">[clear]</span>
+    <span class="rb-sep">|</span>`,
   text: () => `
     <span class="tool" onclick="wrapSelection('**')" title="**bold** the selected words">[bold]</span>
     <span class="tool" onclick="wrapSelection('*')" title="*italic* the selected words">[italic]</span>
+    <span class="rb-sep">|</span>
     <span class="rb-hint" id="rb-hint">select some words first</span>`,
 };
 
@@ -881,9 +889,21 @@ function paintRibbon() {
   const tabs = document.getElementById('rb-tabs');
   const tools = document.getElementById('rb-tools');
   if (!tabs || !tools) return;
-  tabs.innerHTML = TABS.map(t =>
-    `<span class="rb-tab${t.id === activeTab ? ' active' : ''}"
-           onclick="selectTab('${t.id}')">/ ${t.label} \\</span>`).join('');
+  // the rule breaks at the active tab, which is what makes it read as a tab
+  // rather than a button: the open one has nothing ruled across its mouth
+  const parts = [];
+  TABS.forEach((t, i) => {
+    if (i > 0) {
+      // the break sits just past the active tab's right edge, nowhere else
+      const broken = TABS[i - 1].id === activeTab;
+      parts.push(`<span class="rb-rule">${broken ? '  ' : '__'}</span>`);
+    }
+    parts.push(`<span class="rb-tab${t.id === activeTab ? ' active' : ''}"
+                      onclick="selectTab('${t.id}')">/${t.label}\\</span>`);
+  });
+  const lastIsActive = TABS[TABS.length - 1].id === activeTab;
+  parts.push(`<span class="rb-rule rb-fill">${lastIsActive ? '' : '_'.repeat(300)}</span>`);
+  tabs.innerHTML = parts.join('');
   tools.innerHTML = TAB_TOOLS[activeTab]();
 }
 
