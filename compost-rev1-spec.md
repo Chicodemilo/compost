@@ -215,10 +215,12 @@ Single HTML file. Served locally. Not a webapp.
 - Filter chips: class, date range, **the mark**, and **hidden** — separate axes, each
   filtered on its own
 - Results: date, class, tags, transcript snippet, inline `<audio controls>` per row
-- **Glyphs report, words act.** The mark stays `[ ]` / `[•]` because it shows a state. Anything
-  you click to *do* something is a word in the same brackets: `[hide]`, `[back]`, `[close]`. This
-  exists because the active hunk briefly carried two different `[x]` controls — one hid the hunk,
-  one dismissed the panel — which is exactly the collision a glyph vocabulary invites.
+- **Two control vocabularies, split by what they touch.** Words act on the hunk — `[hide]`,
+  `[back]` — and change something that outlives the page. Bracket glyphs act on the panel —
+  `[<->]`, `[x]` — and only change what you are looking at. The mark is a glyph too, since it
+  reports a state rather than doing anything. This exists because the active hunk briefly
+  carried two different `[x]` controls, one hiding the hunk and one dismissing the panel; the
+  split is what stops that recurring, since the two kinds can never wear the same face.
 - **`[<->]` expands the active hunk to fill the screen**, `[>-<]` brings it back, and escape
   leaves the big view without putting the hunk away — losing your place is not what escape is
   for. Expanding hands the whole screen to the notes box, which is the only reason to want it.

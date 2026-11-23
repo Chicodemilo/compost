@@ -189,8 +189,9 @@ body {
   font-family: 'Special Elite', cursive; font-size: 13px; color: #e8d5b5;
   letter-spacing: 3px; text-transform: uppercase;
 }
-/* worded, because they do things. the mark stays a glyph because it shows a
-   state — that is the whole rule: glyphs report, words act. */
+/* two vocabularies, split by what the control touches. words act on the hunk
+   ([hide], [back]); bracket glyphs act on the panel ([<->], [x]). the mark is
+   a glyph too, because it reports a state rather than doing anything. */
 .active-box .act {
   font-size: 11px; color: #555; cursor: pointer; user-select: none;
   letter-spacing: 0; line-height: 1; flex-shrink: 0;
@@ -583,8 +584,8 @@ function renderActive(e) {
         <span class="dur">${fmtDur(e.duration)}</span>
         <span class="act glyph" onclick="toggleBig()" id="big-btn"
               title="fill the screen — more room to write">[&lt;-&gt;]</span>
-        <span class="act close" onclick="renderActive(null)"
-              title="put the active hunk away">[close]</span>
+        <span class="act glyph close" onclick="renderActive(null)"
+              title="put the active hunk away">[x]</span>
       </div>
       <div class="deets">${deetRows(e)}</div>
       <audio controls preload="none"
