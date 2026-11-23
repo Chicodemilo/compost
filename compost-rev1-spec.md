@@ -443,6 +443,12 @@ Do not build these. They are real and they come later.
   rather than a char count) and some notion of a note having become its own object rather than
   a margin on a recording. Deliberately not designed yet — note the direction, build it when
   the pile has actually been used this way for a while.
+- **Open in Google Docs.** Considered and dropped. The cheap version — clipboard plus a blank
+  doc — loses the chord alignment the moment it lands in a proportional font, and the real
+  version means OAuth: a cloud project, a client secret on disk, a refresh loop, and tokens
+  that expire every seven days unless the app is published. It would also be the first thing
+  to send a hunk off this machine, which §4 rules out. `[open as pdf]` already covers getting
+  a sheet onto paper or into someone's hands.
 - Any hosted/remote/multi-user version.
 
 ---
