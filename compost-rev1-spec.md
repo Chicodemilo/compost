@@ -243,8 +243,17 @@ Single HTML file. Served locally. Not a webapp.
   if it is *nothing but* chords, so `G7 Am C/G` is one and `A kettle on the stove` is not. The
   test is deliberately strict: swallowing a lyric line because it opened with the word "A"
   would be worse than leaving a chord row showing. Bar lines, `%` and `N.C.` count as chords.
-- Hiding chords swaps the textarea for a read-only pane, because you cannot sensibly type into
-  text that is concealing some of its lines. Unsaved work is flushed before the swap.
+- Turning chord rows on opens **a row of its own above every line of words** — not another line
+  of text, a lane. Chords in it are **chips you drag left and right** over the words. Anything
+  with a space between it is a separate chip, so a bridge is just a run of them. The words are
+  read-only while the lanes are open; you go back to the plain box to change them.
+- **A chip's position is its character column**, which is why the file stays an ordinary chord
+  sheet — dragging a chord is changing how many spaces sit in front of it. Dragging snaps to
+  the monospace grid and redraws from the committed line on drop, so what you see and what is
+  on disk can never drift. Two chords dropped on top of each other are pushed apart, never
+  silently stacked.
+- Note the class is `chord-chip`, not `chip`: `chip` is already the filter chips, and the
+  collision quietly made every class filter look like a chord.
 - **Phone is a first pass, not a finished design.** Under 600px the side padding comes in, the
   hunk row wraps instead of squeezing its tags, and the panels shrink. The two row controls sit
   in one `.ctrls` wrapper so a wrapping row can never strand `[archive]` on a line by itself

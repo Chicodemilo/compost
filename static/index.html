@@ -297,15 +297,37 @@ textarea.notes::placeholder { color: #3a3a3a; }
 }
 .transport .tool:hover { color: #e8d5b5; }
 .transport .tool.on { color: #8f9f6b; }
-/* the read pane stands in for the textarea while chord rows are hidden —
-   you cannot sensibly type into text that is concealing some of its lines */
-pre.notes-read {
+/* chord rows: each line of words gets its own row above it to put chords on.
+   not another line of text — a lane, which is why the words are read-only here
+   and you go back to the plain box to change them. */
+#notes-lanes {
   width: 100%; margin-top: 8px; height: 150px; overflow: auto;
   background: #0f0f0f; border: 1px solid #2a2a2a; border-radius: 2px;
-  color: #e8d5b5; font-family: 'IBM Plex Mono', monospace; font-size: 13px;
-  line-height: 1.7; padding: 10px 12px; white-space: pre-wrap;
+  padding: 10px 12px;
 }
-#active.big pre.notes-read { flex: 1; min-height: 200px; }
+#active.big #notes-lanes { flex: 1; min-height: 200px; }
+.lane { margin-bottom: 4px; }
+/* the chord row is a grid, not a text field. a chord sits at a character
+   column, which is exactly how a chord sheet has always worked — so dragging
+   one left or right is just changing how many spaces precede it in the file. */
+.lane .chord-row {
+  position: relative; height: 1.7em; cursor: text;
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.7;
+}
+.lane .chord-chip {
+  position: absolute; top: 0; cursor: grab; user-select: none;
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.7;
+  color: #cdbb8e; background: #22231d; border-radius: 2px;
+  padding: 0 2px; margin-left: -2px; white-space: pre; outline: none;
+}
+.lane .chord-chip:hover { background: #2e3026; }
+.lane .chord-chip:focus { background: #343629; color: #f5e8d0; cursor: text; }
+.lane .chord-chip.dragging { cursor: grabbing; background: #3b3e2d; color: #f5e8d0; z-index: 2; }
+.lane .lane-lyric {
+  color: #e8d5b5; font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+  line-height: 1.7; white-space: pre-wrap; word-break: break-word;
+}
+.lane-break { height: 14px; }
 .hunk .title, .active-box .title { color: #e8d5b5; font-size: 12px; letter-spacing: 1px; }
 .hunk .title.none, .active-box .title.none { color: #3a3a3a; font-style: italic; letter-spacing: 0; }
 .hunk .date.pick { cursor: pointer; }
@@ -671,7 +693,7 @@ function renderActive(e) {
       </div>
       <textarea class="notes" id="notes-box" spellcheck="true" maxlength="${MAX_NOTES}"
                 placeholder="work it out here…">${esc(e.notes || '')}</textarea>
-      <pre class="notes-read" id="notes-read" hidden></pre>
+      <div id="notes-lanes" hidden></div>
       <div class="ribbon horz_sep_minor on_top">
         <span class="tool on" id="rb-chord-rows" onclick="toggleChordRows()"
               title="show or hide the chord rows">[chord rows]</span>
@@ -679,7 +701,7 @@ function renderActive(e) {
     </div>`;
   rbRateIdx = 0;                       // a new hunk starts at full speed
   wireRibbon(activeWrap.querySelector('audio'));
-  chordRowsOn = true;                     // and with its chords showing
+  chordRowsOn = false;                 // and in the plain box, writing words
   paintChordRows();
   const box = document.getElementById('notes-box');
   showCount(box.value.length);
@@ -755,10 +777,31 @@ const isChordRow = line => {
   return t.length > 0 && t.every(x => CHORD.test(x) || CHORD_EXTRA.test(x));
 };
 
-const stripChordRows = text =>
-  text.split('\n').filter(l => !isChordRow(l)).join('\n');
+// The file keeps the classic chord-sheet shape — a chord line sitting above
+// the line it belongs to — so what is on disk is still plain text anyone can
+// read. These two turn that text into pairs and back.
+function parseLanes(text) {
+  const out = [];
+  let pending = null;
+  for (const line of text.split('\n')) {
+    if (isChordRow(line)) { pending = line; continue; }
+    out.push({ chord: pending, lyric: line });
+    pending = null;
+  }
+  if (pending !== null) out.push({ chord: pending, lyric: '' });
+  return out;
+}
 
-let chordRowsOn = true;
+function serializeLanes(lanes) {
+  const out = [];
+  for (const l of lanes) {
+    if (l.chord && l.chord.trim()) out.push(l.chord);
+    out.push(l.lyric);
+  }
+  return out.join('\n');
+}
+
+let chordRowsOn = false;
 
 function toggleChordRows() {
   chordRowsOn = !chordRowsOn;
@@ -767,20 +810,182 @@ function toggleChordRows() {
 
 function paintChordRows() {
   const box = document.getElementById('notes-box');
-  const read = document.getElementById('notes-read');
+  const lanes = document.getElementById('notes-lanes');
   const btn = document.getElementById('rb-chord-rows');
-  if (!box || !read) return;
+  if (!box || !lanes) return;
   btn?.classList.toggle('on', chordRowsOn);
-  if (btn) btn.title = chordRowsOn ? 'hide the chord rows' : 'show the chord rows — editing comes back too';
-  if (chordRowsOn) {
-    read.hidden = true;
+  if (btn) btn.title = chordRowsOn ? 'put the chord rows away'
+                                   : 'open a chord row above every line';
+  if (!chordRowsOn) {
+    lanes.hidden = true;
     box.hidden = false;
-  } else {
-    flushNotes();                       // never hide unsaved text behind a view switch
-    read.textContent = stripChordRows(box.value) || '(nothing but chords)';
-    box.hidden = true;
-    read.hidden = false;
+    return;
   }
+  flushNotes();                        // never strand unsaved words behind a view switch
+  const rows = parseLanes(box.value);
+  lanes.innerHTML = rows.map((r, i) => r.lyric.trim() === ''
+    ? '<div class="lane-break"></div>'
+    : `<div class="lane">
+         <div class="chord-row" data-i="${i}">${chipsHTML(r.chord || '')}</div>
+         <div class="lane-lyric">${esc(r.lyric)}</div>
+       </div>`).join('') || '<div class="lane-lyric" style="color:#444">nothing written yet</div>';
+  lanes.querySelectorAll('.chord-row').forEach(wireChordRow);
+  box.hidden = true;
+  lanes.hidden = false;
+}
+
+// ---- chord chips ----
+// a chord line is a string of spaces with chords dropped into it, so a chip's
+// column IS its index in that string. tokens are whatever has a space between
+// them, which is also how you string a run of them together for a bridge.
+const tokensOf = line => {
+  const out = [];
+  const re = /\S+/g;
+  let m;
+  while ((m = re.exec(line || '')) !== null) out.push({ text: m[0], col: m.index });
+  return out;
+};
+
+const lineOf = tokens => {
+  let line = '';
+  for (const t of [...tokens].sort((a, b) => a.col - b.col)) {
+    if (!t.text) continue;
+    const col = Math.max(t.col, line.length ? line.length + 1 : 0);  // never collide
+    line += ' '.repeat(col - line.length) + t.text;
+  }
+  return line;
+};
+
+const chipsHTML = line => tokensOf(line).map(t =>
+  `<span class="chord-chip" contenteditable="true" spellcheck="false"
+         style="left:${t.col}ch">${esc(t.text)}</span>`).join('');
+
+const chipsToLine = row => lineOf([...row.querySelectorAll('.chord-chip')].map(c => ({
+  text: c.textContent.trim(),
+  col: Math.max(0, Math.round(parseFloat(c.style.left) || 0)),
+})));
+
+function wireChordRow(row) {
+  row.addEventListener('mousedown', ev => {
+    const chip = ev.target.closest('.chord-chip');
+    if (!chip) return;
+    const chw = chipColWidth(row);
+    const startX = ev.clientX;
+    const startCol = parseFloat(chip.style.left) || 0;
+    let moved = false;
+    const move = e => {
+      if (Math.abs(e.clientX - startX) < 3 && !moved) return;
+      moved = true;
+      chip.classList.add('dragging');
+      chip.blur();                                  // dragging is not editing
+      chip.style.left = Math.max(0, Math.round(startCol + (e.clientX - startX) / chw)) + 'ch';
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      chip.classList.remove('dragging');
+      if (moved) {
+        commitLanes();
+        paintChordRows();   // redraw from the committed line, so two chords dropped
+                            // on top of each other land where the file actually puts them
+      } else {
+        chip.focus();                               // a click without a drag edits it
+      }
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+
+  // clicking the empty part of the row starts a chord right there
+  row.addEventListener('click', ev => {
+    if (ev.target !== row) return;
+    const chw = chipColWidth(row);
+    const col = Math.max(0, Math.round((ev.clientX - row.getBoundingClientRect().left) / chw));
+    const chip = newChip(col);
+    row.appendChild(chip);
+    chip.focus();
+  });
+
+  row.addEventListener('input', ev => {
+    if (!ev.target.closest('.chord-chip')) return;
+    commitLanes();
+  });
+
+  row.addEventListener('keydown', ev => {
+    const chip = ev.target.closest('.chord-chip');
+    if (!chip) return;
+    if (ev.key === 'Enter' || ev.key === 'Escape') { ev.preventDefault(); chip.blur(); return; }
+    // space ends this chord and opens the next one a column along, which is
+    // what lets you rattle out a whole bridge without reaching for the mouse
+    if (ev.key === ' ') {
+      ev.preventDefault();
+      const text = chip.textContent.trim();
+      if (!text) return;
+      const col = Math.round(parseFloat(chip.style.left) || 0) + text.length + 1;
+      const next = newChip(col);
+      row.appendChild(next);
+      next.focus();
+      commitLanes();
+    }
+  });
+
+  row.addEventListener('focusout', ev => {
+    const chip = ev.target.closest('.chord-chip');
+    if (!chip) return;
+    if (!chip.textContent.trim()) { chip.remove(); commitLanes(); return; }
+    if (/\s/.test(chip.textContent)) { splitChip(chip); commitLanes(); }   // pasted run
+  }, true);
+}
+
+function newChip(col) {
+  const chip = document.createElement('span');
+  chip.className = 'chord-chip';
+  chip.contentEditable = 'true';
+  chip.spellcheck = false;
+  chip.style.left = col + 'ch';
+  return chip;
+}
+
+// one chip holding "C F G" is three chords that have not been separated yet
+function splitChip(chip) {
+  const row = chip.parentElement;
+  const startCol = Math.round(parseFloat(chip.style.left) || 0);
+  const parts = chip.textContent.trim().split(/\s+/).filter(Boolean);
+  chip.textContent = parts[0] || '';
+  let col = startCol + (parts[0] || '').length + 1;
+  for (const p of parts.slice(1)) {
+    const extra = newChip(col);
+    extra.textContent = p;
+    row.appendChild(extra);
+    col += p.length + 1;
+  }
+}
+
+// width of one character in the row's own font, so the grid is honest
+function chipColWidth(row) {
+  const probe = document.createElement('span');
+  probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre';
+  probe.textContent = '0'.repeat(20);
+  row.appendChild(probe);
+  const w = probe.getBoundingClientRect().width / 20;
+  probe.remove();
+  return w || 7.8;
+}
+
+// chords typed into a lane are folded back into the text as a chord line, so
+// the lanes are a view of the notes rather than a second place they live
+function commitLanes() {
+  const box = document.getElementById('notes-box');
+  const rows = parseLanes(box.value);
+  document.querySelectorAll('#notes-lanes .chord-row').forEach(row => {
+    const r = rows[+row.dataset.i];
+    if (r) r.chord = chipsToLine(row);
+  });
+  box.value = serializeLanes(rows);
+  showCount(box.value.length);
+  notesState('');
+  clearTimeout(notesTimer);
+  notesTimer = setTimeout(() => saveNotes(activeHunk.id, box.value), 800);
 }
 
 // ---- transport for the hunk you are writing against ----
