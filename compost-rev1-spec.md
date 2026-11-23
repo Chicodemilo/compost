@@ -213,11 +213,14 @@ Single HTML file. Served locally. Not a webapp.
   `horz_sep_major` (2px) divides the groups — under the header, between the active post and the
   search, and between the years. Every grey rule across the page is one of these two classes; a
   box outline is a different thing and is not one of them.
-- Both are **gradients, not borders**: full strength from the left, fading out before the right
-  edge, so a long list reads as texture rather than pinstripes. `--sep-solid` sets where the
-  fade begins and `--sep-gone` where it finishes; they are meant to be tuned. Anything that
-  both paints a background colour and carries a separator must use `background-color`, since
-  the `background` shorthand wipes the gradient.
+- Both are **gradients, not borders**, so a long list reads as texture rather than pinstripes.
+  They fade differently on purpose. **Major** is anchored at the left and fades out to the
+  right (`--sep-solid` 65% → `--sep-gone` 100%): it marks where a group begins, so it needs a
+  hard start. **Minor** fades in and out symmetrically over `--sep-fade` (10%) at each end and
+  touches neither edge: it only separates siblings, so it can float. Every stop is a variable
+  and they are meant to be tuned.
+- Anything that both paints a background colour and carries a separator must use
+  `background-color`, since the `background` shorthand wipes the gradient.
 - **Opens on `compost`, not on "all" and not on the classified folders.** Classified material is
   already findable. The unresolved pile is the only thing that benefits from being stumbled over.
 - **`surprise me` button** — pulls one random entry from `compost`. Random is random: the

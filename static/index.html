@@ -19,24 +19,34 @@ body {
    group, major divides the groups themselves. Nothing else draws a grey line
    across the page — box outlines are a different thing and stay as they are.
 
-   They are gradients, not borders: full strength from the left, then faded to
-   nothing by the right edge, so a screen full of them reads as texture instead
-   of pinstripes. --sep-solid is where the fade starts, --sep-gone is where it
-   finishes — those two are the knobs. */
+   They are gradients, not borders, so a screen full of them reads as texture
+   instead of pinstripes. Major stays anchored at the left and fades out before
+   the right edge — it marks where a group begins, so it needs a hard start.
+   Minor fades in and out symmetrically and touches neither edge: it only
+   separates siblings, so it can float. Every stop is a variable; they are
+   meant to be tuned. */
 :root {
   --sep: #333;
   --sep-clear: #33333300;
-  --sep-solid: 75%;
-  --sep-gone: 100%;
+  --sep-solid: 65%;   /* major: holds full strength to here… */
+  --sep-gone: 100%;   /* …and is gone by here */
+  --sep-fade: 10%;    /* minor: fades in and out over this much of the width, each side */
 }
 .horz_sep_minor, .horz_sep_major {
-  background-image: linear-gradient(to right,
-    var(--sep) var(--sep-solid), var(--sep-clear) var(--sep-gone));
   background-repeat: no-repeat;
   background-position: left bottom;
 }
-.horz_sep_minor { background-size: 100% 1px; }
-.horz_sep_major { background-size: 100% 2px; }
+.horz_sep_major {
+  background-image: linear-gradient(to right,
+    var(--sep) var(--sep-solid), var(--sep-clear) var(--sep-gone));
+  background-size: 100% 2px;
+}
+.horz_sep_minor {
+  background-image: linear-gradient(to right,
+    var(--sep-clear) 0%, var(--sep) var(--sep-fade),
+    var(--sep) calc(100% - var(--sep-fade)), var(--sep-clear) 100%);
+  background-size: 100% 1px;
+}
 /* same rule on the upper edge, where the divider belongs to the block below it */
 .horz_sep_minor.on_top { background-position: left top; }
 .header {
