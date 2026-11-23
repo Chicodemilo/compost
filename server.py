@@ -4,7 +4,7 @@
 GET /                    the search page
 GET /api/search?q=...    FTS5 search across all years
                          all search routes take &mark=1 (only marked) and
-                         &hidden=1 (only hidden; otherwise hidden are excluded)
+                         &archived=1 (only archived; otherwise archived are excluded)
 GET /api/search?year=Y   one year's hunks (browse view loads years lazily)
 GET /api/search          per-year counts for the folded browse view
 GET /audio/<rel>         audio with Range support so <audio> can seek
@@ -12,7 +12,7 @@ GET /api/hunk?id=...    one hunk, whole transcript, every column + tags
 GET /api/random          one hunk at random (honors ?cls= like search does)
 POST /api/reveal         {"path": audio_path} — reveal that file in Finder
 POST /api/mark           {"id": ..., "mark": true|false} — flag "something here"
-POST /api/hide           {"id": ..., "hide": true|false} — out of view, or back
+POST /api/archive           {"id": ..., "archive": true|false} — out of view, or back
 POST /api/notes          {"id": ..., "text": ...} — the reader's own writing
 GET /api/classes         the class roster (name -> writeup)
 POST /api/classes        create or update a class {"name": ..., "writeup": ...}
@@ -52,15 +52,15 @@ def class_filter(conn, cls: str):
     return roster, present, selected
 
 
-def row_filter(selected: list, marked: bool, hidden: bool = False) -> tuple[list, list]:
-    """Conditions for the filters, ANDed. Class, mark and hidden are separate
+def row_filter(selected: list, marked: bool, archived: bool = False) -> tuple[list, list]:
+    """Conditions for the filters, ANDed. Class, mark and archived are separate
     axes — a marked hunk keeps whatever class it wears, compost included.
 
-    Hidden is always pinned one way or the other, never left open: the default
+    Archived is always pinned one way or the other, never left open: the default
     pile excludes it, and asking for it shows that and nothing else. There is
     no view that mixes the two, so something put out of sight stays out of
     sight until you go looking."""
-    conds = ["e.hidden = 1" if hidden else "e.hidden = 0"]
+    conds = ["e.archived = 1" if archived else "e.archived = 0"]
     params = []
     if selected:
         conds.append(f"e.class IN ({','.join('?' * len(selected))})")
@@ -70,7 +70,7 @@ def row_filter(selected: list, marked: bool, hidden: bool = False) -> tuple[list
     return conds, params
 
 
-FLAGS = {"status", "hidden"}   # the only flag columns the page may write
+FLAGS = {"status", "archived"}   # the only flag columns the page may write
 # A knowable ceiling the page can show a count against — keep it in step with
 # MAX_NOTES in index.html. Generous for notes on a memo; raise it if it bites.
 MAX_NOTES = 10_000
@@ -137,7 +137,7 @@ def set_flag(hunk_id: str, field: str, value) -> dict | None:
 
 
 def load_hunk(hunk_id: str = "", cls: str = "", marked: bool = False,
-               hidden: bool = False):
+               archived: bool = False):
     """One whole hunk — full transcript, every column, tags joined.
     No hunk_id means pick at random from whatever the filters allow."""
     conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
@@ -148,7 +148,7 @@ def load_hunk(hunk_id: str = "", cls: str = "", marked: bool = False,
     else:
         _, _, selected = class_filter(conn, cls)
         # random is random: the filters narrow the pile, nothing weights the draw
-        conds, params = row_filter(selected, marked, hidden)
+        conds, params = row_filter(selected, marked, archived)
         where = f" WHERE {' AND '.join(conds)}" if conds else ""
         row = conn.execute(
             f"SELECT e.*, {TAGS_SUB} FROM hunks e{where} ORDER BY RANDOM() LIMIT 1",
@@ -158,12 +158,12 @@ def load_hunk(hunk_id: str = "", cls: str = "", marked: bool = False,
 
 
 def query_db(q: str, year: str = "", cls: str = "", marked: bool = False,
-             hidden: bool = False, limit: int = 100):
+             archived: bool = False, limit: int = 100):
     conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     out = {}
     roster, present, selected = class_filter(conn, cls)
-    conds, fparams = row_filter(selected, marked, hidden)
+    conds, fparams = row_filter(selected, marked, archived)
     cfilter = "".join(f" AND {c}" for c in conds)
     tags_sub = TAGS_SUB
     if q.strip():
@@ -192,7 +192,7 @@ def query_db(q: str, year: str = "", cls: str = "", marked: bool = False,
         out["classes"] = [c for c in roster if c in present] + sorted(present - set(roster))
     total = conn.execute(
         "SELECT COUNT(*), MIN(created_at), MAX(created_at) FROM hunks e "
-        f"WHERE {conds[0]}").fetchone()   # conds[0] is always the hidden pin
+        f"WHERE {conds[0]}").fetchone()   # conds[0] is always the archived pin
     conn.close()
     out.update(total=total[0], oldest=total[1], newest=total[2])
     return out
@@ -244,13 +244,13 @@ class Handler(BaseHTTPRequestHandler):
             body = json.dumps(query_db(qs.get("q", [""])[0], qs.get("year", [""])[0],
                                        qs.get("cls", [""])[0],
                                        qs.get("mark", [""])[0] == "1",
-                                       qs.get("hidden", [""])[0] == "1")).encode()
+                                       qs.get("archived", [""])[0] == "1")).encode()
             self._send(200, "application/json", body)
         elif url.path in ("/api/hunk", "/api/random"):
             qs = urllib.parse.parse_qs(url.query)
             hunk = load_hunk(qs.get("id", [""])[0] if url.path == "/api/hunk" else "",
                                qs.get("cls", [""])[0], qs.get("mark", [""])[0] == "1",
-                               qs.get("hidden", [""])[0] == "1")
+                               qs.get("archived", [""])[0] == "1")
             if hunk is None:
                 self._send(404, "text/plain", b"no such hunk")
                 return
@@ -305,7 +305,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _flag(self, path: str):
         """Everything the page may write to an hunk. Mark says there is
-        something here, hidden says keep it out of my view, notes are the
+        something here, archived says keep it out of my view, notes are the
         reader's own writing. None of the three touches what the pipeline
         produced — not the transcript, not the class, not the tags."""
         try:
@@ -323,8 +323,8 @@ class Handler(BaseHTTPRequestHandler):
                            f"notes must be text under {MAX_NOTES} chars".encode())
                 return
             hunk = set_notes(hunk_id, text)
-        elif path == "/api/hide":
-            hunk = set_flag(hunk_id, "hidden", 1 if body.get("hide") else 0)
+        elif path == "/api/archive":
+            hunk = set_flag(hunk_id, "archived", 1 if body.get("archive") else 0)
         else:
             hunk = set_flag(hunk_id, "status",
                              "promoted" if body.get("mark") else "raw")
@@ -338,7 +338,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/reveal":
             self._reveal()
             return
-        if path in ("/api/mark", "/api/hide", "/api/notes"):
+        if path in ("/api/mark", "/api/archive", "/api/notes"):
             self._flag(path)
             return
         if path != "/api/classes":

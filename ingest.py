@@ -270,7 +270,7 @@ def ingest_one(src: Path, strikes: dict[str, int]) -> None:
             "duration": duration_of(audio_dst),
             "lat": None, "lon": None, "place": None,
             "status": "raw",
-            "hidden": False,
+            "archived": False,
             "ingested_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         }, indent=2)),
     ]:

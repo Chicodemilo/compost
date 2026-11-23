@@ -43,7 +43,7 @@ CREATE TABLE hunks (
     place       TEXT,
     duration    REAL,
     status      TEXT DEFAULT 'raw',
-    hidden      INTEGER DEFAULT 0,
+    archived      INTEGER DEFAULT 0,
     indexed_at  TEXT
 );
 CREATE TABLE tags (
@@ -84,12 +84,12 @@ def rebuild() -> int:
         notes = dp.read_text().strip() if dp.exists() else ""
         conn.execute(
             "INSERT OR REPLACE INTO hunks (id, created_at, source, title, class, transcript,"
-            " notes, audio_path, lat, lon, place, duration, status, hidden, indexed_at)"
+            " notes, audio_path, lat, lon, place, duration, status, archived, indexed_at)"
             " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (m["id"], m["created_at"], m.get("source", "vm"), m.get("title"),
              m.get("class", "compost"), transcript, notes, m.get("audio_path"), m.get("lat"),
              m.get("lon"), m.get("place"), m.get("duration"), m.get("status", "raw"),
-             int(m.get("hidden") or 0), now),
+             int(m.get("archived") or 0), now),
         )
         conn.execute("INSERT INTO hunks_fts (id, transcript, title, notes) VALUES (?,?,?,?)",
                      (m["id"], transcript, m.get("title") or "", notes))

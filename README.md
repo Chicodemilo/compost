@@ -49,7 +49,7 @@ that the plumbing might save someone the evening it takes to build.
   beside it puts an hunk out of view in one click, and it leaves the pile
   entirely: out of search, out of the year counts, out of the header total,
   never drawn by `random`. Nothing moves on disk and nothing is deleted; the
-  `hidden` chip shows that pile, where `[+]` puts an hunk back in one tap. Class edits apply to future filing only; already-filed hunks
+  `archived` chip shows that pile, where `[+]` puts an hunk back in one tap. Class edits apply to future filing only; already-filed hunks
   keep their labels. An active-post box sits above the search: `random`
   pulls one hunk out of the pile (honoring whatever class chips are lit),
   clicking any hunk's date promotes it, and the box holds it — whole

@@ -130,7 +130,7 @@ CREATE TABLE hunks (
     place       TEXT,                 -- nullable, human-readable if available
     duration    REAL,                 -- seconds
     status      TEXT DEFAULT 'raw',   -- 'raw' | 'promoted'  — the mark, §9
-    hidden      INTEGER DEFAULT 0,    -- out of view but not gone, §9
+    archived      INTEGER DEFAULT 0,    -- out of view but not gone, §9
     indexed_at  TEXT
 );
 
@@ -212,14 +212,16 @@ Single HTML file. Served locally. Not a webapp.
 
 **Requirements:**
 - Search box → FTS5 query across transcripts
-- Filter chips: class, date range, **the mark**, and **hidden** — separate axes, each
+- Filter chips: class, date range, **the mark**, and **archived** — separate axes, each
   filtered on its own
 - Results: date, class, tags, transcript snippet, inline `<audio controls>` per row
-- **Two control vocabularies, split by what they touch.** Words act on the hunk — `[hide]`,
+- The archive control is `[archive]`, not `[hide]`, despite being longer. Inside the big view
+  `[hide]` reads as "hide this window" — the word has to survive being read next to a modal.
+- **Two control vocabularies, split by what they touch.** Words act on the hunk — `[archive]`,
   `[back]` — and change something that outlives the page. Bracket glyphs act on the panel —
   `[<->]`, `[x]` — and only change what you are looking at. The mark is a glyph too, since it
   reports a state rather than doing anything. This exists because the active hunk briefly
-  carried two different `[x]` controls, one hiding the hunk and one dismissing the panel; the
+  carried two different `[x]` controls, one archiving the hunk and one dismissing the panel; the
   split is what stops that recurring, since the two kinds can never wear the same face.
 - **`[<->]` expands the active hunk to fill the screen**, `[>-<]` brings it back, and escape
   leaves the big view without putting the hunk away — losing your place is not what escape is
@@ -276,17 +278,17 @@ Single HTML file. Served locally. Not a webapp.
   edits would remove the need for versioning; they do not, because the box stays editable
   anyway, and the controls were clutter wrapped around a plain affordance. Notes are plain
   files, so `git init ~/compost` with `audio/` ignored buys real history if it is ever wanted.
-- **Hidden** — `[x]` beside the mark, in dark orange: the one control that takes something
+- **Archived** — `[x]` beside the mark, in dark orange: the one control that takes something
   away must not wear the mark's green or the tags' blue. **One click, and it goes.** No confirm
   step: it sets a flag and **moves nothing** — audio, transcript and meta stay put — so there is
   nothing to be careful about and the undo is one tap away. Ceremony belongs in front of
   irreversible acts, and this is not one.
-- A hidden hunk leaves the pile completely: out of search, out of the year counts, out of the
+- An archived hunk leaves the pile completely: out of search, out of the year counts, out of the
   header total, and never drawn by `surprise me`. "Out of view" has to mean out of view, or the
   pile stops being trustworthy as the thing you are looking at.
-- The `hidden` chip shows that pile and only that pile, where each hunk wears `[+]` to come
+- The `archived` chip shows that pile and only that pile, where each hunk wears `[back]` to come
   back. Restoring is a single tap — it adds something to a view, so a misfire costs a click
-  rather than a thought you meant to keep. No view ever mixes hidden and live hunks.
+  rather than a thought you meant to keep. No view ever mixes archived and live hunks.
 
 No deleting, no auth, no accounts. The mark is the one write the page makes to an hunk, and it
 touches nothing the pipeline produced — not the transcript, not the class, not the tags.
@@ -343,7 +345,7 @@ more than rarely; the `compost` pile is large and that is correct.
 - **Never take an hunk's meta file out of `meta/`.** Idempotency comes from `meta/*.json`
   alone, so an hunk whose meta moves or vanishes reads as never-processed — and since the
   Voice Memos recording is deliberately left alone, the next WatchPaths fire re-ingests it
-  under a new id, minutes later. This is why hiding is a flag and not a move: anything that
+  under a new id, minutes later. This is why archiving is a flag and not a move: anything that
   relocates hunks has to carry a tombstone, and a flag needs none.
 
 ---
@@ -359,7 +361,7 @@ Do not build these. They are real and they come later.
   plus the one-time LLM pass to split the existing blob into dated hunks. `source='note'`
   is already in the schema for this.
 - The ratchet: kill/keep/promote cycling. The mark (§9) spends the `status` column and is as
-  far as this goes — a flag, not a cycle. There is still **no kill state**: `hidden` says where
+  far as this goes — a flag, not a cycle. There is still **no kill state**: `archived` says where
   something is shown, never what it is worth. Nothing may ever record a judgment against an
   hunk, and nothing may ever delete one.
 - **Addressable hunks.** The page currently never touches the URL: the active hunk lives in

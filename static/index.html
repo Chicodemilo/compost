@@ -72,7 +72,7 @@ body {
 .searchbar input::placeholder { color: #555; }
 #filters { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
 #class-chips { display: flex; gap: 8px; flex-wrap: wrap; }
-#mark-filter, #hidden-filter { padding-left: 16px; border-left: 1px solid #1f1f1f; }
+#mark-filter, #archive-filter { padding-left: 16px; border-left: 1px solid #1f1f1f; }
 .chip {
   font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
   color: #555; border: 1px solid #2a2a2a; border-radius: 2px;
@@ -83,9 +83,9 @@ body {
 .chip.mark-chip { color: #6b7a52; border-color: #262c1e; }
 .chip.mark-chip:hover { color: #8f9f6b; border-color: #3a442c; }
 .chip.mark-chip.active { background: #8f9f6b; color: #0a0a0a; border-color: #8f9f6b; }
-.chip.hidden-chip { color: #6b4a28; border-color: #2c2218; }
-.chip.hidden-chip:hover { color: #b8753a; border-color: #44341f; }
-.chip.hidden-chip.active { background: #b8753a; color: #0a0a0a; border-color: #b8753a; }
+.chip.archive-chip { color: #6b4a28; border-color: #2c2218; }
+.chip.archive-chip:hover { color: #b8753a; border-color: #44341f; }
+.chip.archive-chip.active { background: #b8753a; color: #0a0a0a; border-color: #b8753a; }
 /* the mark: one bit, one axis. a flag that something is here, not a grade */
 .mark, .del {
   font-size: 14px; color: #3a3a3a; cursor: pointer; user-select: none;
@@ -198,7 +198,7 @@ body {
   letter-spacing: 3px; text-transform: uppercase;
 }
 /* two vocabularies, split by what the control touches. words act on the hunk
-   ([hide], [back]); bracket glyphs act on the panel ([<->], [x]). the mark is
+   ([archive], [back]); bracket glyphs act on the panel ([<->], [x]). the mark is
    a glyph too, because it reports a state rather than doing anything. */
 .active-box .act {
   font-size: 11px; color: #555; cursor: pointer; user-select: none;
@@ -274,9 +274,9 @@ textarea.notes::placeholder { color: #3a3a3a; }
       <span class="chip mark-chip" id="mark-chip" onclick="toggleMarkFilter()"
             title="only hunks flagged as having something in them">something here</span>
     </div>
-    <div id="hidden-filter">
-      <span class="chip hidden-chip" id="hidden-chip" onclick="toggleHiddenFilter()"
-            title="the hunks you put out of view — nothing was deleted">hidden</span>
+    <div id="archive-filter">
+      <span class="chip archive-chip" id="archive-chip" onclick="toggleArchivedFilter()"
+            title="the hunks you put out of view — nothing was deleted">archived</span>
     </div>
   </div>
 </div>
@@ -323,15 +323,15 @@ const expanded = new Set();       // survives search-and-clear
 const yearCache = new Map();      // "year|filter" -> hunks, fetched once
 const activeCls = new Set();      // class filter; empty = no filter
 let markOn = false;               // the other axis, filtered on its own
-let hiddenOn = false;             // showing the hidden pile instead of the live one
+let archiveOn = false;             // showing the archived pile instead of the live one
 const chipRow = document.getElementById('class-chips');
 const markChip = document.getElementById('mark-chip');
-const hiddenChip = document.getElementById('hidden-chip');
+const archiveChip = document.getElementById('archive-chip');
 
 const clsParam = () => [...activeCls].join(',');
 const filterParams = () =>
-  `cls=${clsParam()}&mark=${markOn ? 1 : 0}&hidden=${hiddenOn ? 1 : 0}`;
-const cacheKey = year => `${year}|${clsParam()}|${markOn ? 1 : 0}|${hiddenOn ? 1 : 0}`;
+  `cls=${clsParam()}&mark=${markOn ? 1 : 0}&archived=${archiveOn ? 1 : 0}`;
+const cacheKey = year => `${year}|${clsParam()}|${markOn ? 1 : 0}|${archiveOn ? 1 : 0}`;
 
 function markHTML(e) {
   const on = e.status === 'promoted';
@@ -366,28 +366,28 @@ function applyMark(id, on) {
   if (activeHunk && activeHunk.id === id) activeHunk.status = st;
 }
 
-const DEL_TITLE = 'put out of view — nothing is deleted, find it again under "hidden"';
+const DEL_TITLE = 'put out of view — nothing is deleted, find it again under "archived"';
 const BACK_TITLE = 'put this back in the pile';
 
 function delHTML(e) {
-  const hid = !!e.hidden;
+  const hid = !!e.archived;
   return `<span class="del${hid ? ' back' : ''}" data-del="${e.id}"
-                onclick="hideHunk('${e.id}', ${!hid}, event)"
+                onclick="archiveHunk('${e.id}', ${!hid}, event)"
                 title="${hid ? BACK_TITLE : DEL_TITLE}"
-          >${hid ? '[back]' : '[hide]'}</span>`;
+          >${hid ? '[back]' : '[archive]'}</span>`;
 }
 
 // one click, both directions. this used to ask twice, from when [x] meant
-// delete — but hiding moves nothing and the hidden chip puts it back in a
+// delete — but archiving moves nothing and the archived chip puts it back in a
 // tap, so a confirm step was just ceremony in front of a reversible act.
-async function hideHunk(id, hide, ev) {
+async function archiveHunk(id, archive, ev) {
   ev.stopPropagation();
-  const r = await fetch('/api/hide', {
+  const r = await fetch('/api/archive', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({id, hide})
+    body: JSON.stringify({id, archive})
   });
   if (!r.ok) { alert(await r.text()); return; }
-  dropHunk(id);   // it left whichever view you are in — the live one or the hidden one
+  dropHunk(id);   // it left whichever view you are in — the live one or the archived one
 }
 
 function dropHunk(id) {
@@ -417,9 +417,9 @@ function toggleMarkFilter() {
   search();
 }
 
-function toggleHiddenFilter() {
-  hiddenOn = !hiddenOn;
-  hiddenChip.classList.toggle('active', hiddenOn);
+function toggleArchivedFilter() {
+  archiveOn = !archiveOn;
+  archiveChip.classList.toggle('active', archiveOn);
   expanded.clear();   // the two piles share no years; stale folds would mislead
   search();
 }
