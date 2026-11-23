@@ -60,11 +60,9 @@ that the plumbing might save someone the evening it takes to build.
   transcript is what the machine heard, the draft is what you made of it, and
   only keeping them apart lets you re-transcribe later without losing your
   thinking. Drafts are plain `.md` files under `drafts/`, indexed alongside
-  transcripts so search finds your writing too. Under it, a one-line field
-  with `↑ top` / `↓ end` adds a dated line without touching what is already
-  there. That makes the fast path additive, though the box stays editable, so
-  it is a habit rather than a guarantee. For a real guarantee, drafts are
-  plain files: `git init ~/compost` with `audio/` ignored costs nothing.
+  transcripts so search finds your writing too. Just a text box — free text,
+  no controls wrapped around it. For history, drafts are plain files:
+  `git init ~/compost` with `audio/` ignored costs nothing.
 - `static/index.html` — the page. One file, vanilla JS, no build step.
 
 Everything lands in `~/compost/` — audio, transcripts, meta, index, logs.

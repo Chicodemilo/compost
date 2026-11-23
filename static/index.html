@@ -169,7 +169,6 @@ body {
   font-family: 'Special Elite', cursive; font-size: 12px; color: #e8d5b5;
   letter-spacing: 3px; text-transform: uppercase;
 }
-.draft-head .hint { font-size: 9px; color: #444; letter-spacing: 1px; }
 .draft-head .state { margin-left: auto; font-size: 9px; color: #555; letter-spacing: 2px;
                      text-transform: uppercase; }
 .draft-head .state.saving { color: #7a8ab8; }
@@ -183,20 +182,6 @@ textarea.draft {
 }
 textarea.draft:focus { border-color: #c8b89a; }
 textarea.draft::placeholder { color: #3a3a3a; }
-.draft-add { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
-.draft-add input {
-  flex: 1; background: #111; border: 1px solid #2a2a2a; border-radius: 2px;
-  color: #c8b89a; font-family: 'IBM Plex Mono', monospace; font-size: 12px;
-  padding: 7px 10px; outline: none; letter-spacing: 1px;
-}
-.draft-add input:focus { border-color: #c8b89a; }
-.draft-add input::placeholder { color: #444; }
-.addbtn {
-  font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
-  color: #7a8ab8; border: 1px solid #232a3d; border-radius: 2px;
-  padding: 6px 10px; cursor: pointer; user-select: none; white-space: nowrap;
-}
-.addbtn:hover { color: #e8d5b5; border-color: #c8b89a; }
 .entry .title, .active-box .title { color: #e8d5b5; font-size: 12px; letter-spacing: 1px; }
 .entry .title.none, .active-box .title.none { color: #3a3a3a; font-style: italic; letter-spacing: 0; }
 .entry .date.pick { cursor: pointer; }
@@ -545,17 +530,10 @@ function renderActive(e) {
       <div class="full">${esc(e.transcript) || '<span style="color:#444">(no transcript)</span>'}</div>
       <div class="draft-head">
         <span class="lbl">draft</span>
-        <span class="hint">yours — the transcript above stays as recorded</span>
         <span class="state" id="draft-state"></span>
       </div>
       <textarea class="draft" id="draft-box" spellcheck="true"
                 placeholder="work it out here…">${esc(e.draft || '')}</textarea>
-      <div class="draft-add">
-        <input id="draft-add" autocomplete="off" spellcheck="true"
-               placeholder="add a line — enter puts it at the end">
-        <span class="addbtn" onclick="addToDraft('top')" title="newest first">&uarr; top</span>
-        <span class="addbtn" onclick="addToDraft('end')" title="continue the thought">&darr; end</span>
-      </div>
     </div>`;
   const box = document.getElementById('draft-box');
   box.addEventListener('input', () => {
@@ -566,9 +544,6 @@ function renderActive(e) {
   box.addEventListener('blur', () => {
     clearTimeout(draftTimer);
     saveDraft(e.id, box.value);
-  });
-  document.getElementById('draft-add').addEventListener('keydown', ev => {
-    if (ev.key === 'Enter') { ev.preventDefault(); addToDraft('end'); }
   });
   activeWrap.classList.add('open');
 }
@@ -582,32 +557,6 @@ function draftState(cls, text) {
   if (!el) return;
   el.className = 'state ' + cls;
   el.textContent = text || '';
-}
-
-// adding never overwrites. each line arrives stamped and the old text stays
-// exactly where it was, which is why this archive does not need revision
-// history to stop you losing a thought — refining is accumulation, not replacement.
-const stampNow = () => {
-  const d = new Date(), p = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} · ` +
-         `${p(d.getHours())}:${p(d.getMinutes())}`;
-};
-
-function addToDraft(where) {
-  const field = document.getElementById('draft-add');
-  const box = document.getElementById('draft-box');
-  const text = field.value.trim();
-  if (!text || !box || !activeEntry) return;
-  const block = `${stampNow()}\n${text}`;
-  const cur = box.value.trim();
-  box.value = !cur ? block
-            : where === 'top' ? `${block}\n\n${cur}`
-            : `${cur}\n\n${block}`;
-  field.value = '';
-  clearTimeout(draftTimer);
-  saveDraft(activeEntry.id, box.value);
-  box.scrollTop = where === 'top' ? 0 : box.scrollHeight;
-  field.focus();            // keep going — adding one line usually means adding two
 }
 
 // anything that destroys the textarea has to flush first. removing a focused

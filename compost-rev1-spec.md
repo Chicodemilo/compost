@@ -233,15 +233,12 @@ Single HTML file. Served locally. Not a webapp.
   always tell what you actually said from what you decided afterwards you meant. **The page
   never edits the transcript.** Both are indexed, so search covers your writing too and the
   snippet highlights whichever one matched.
-- **Add a line** — a one-line field under the draft with `↑ top` and `↓ end`. Each addition
-  arrives stamped with the date and goes in whole; nothing already written is touched. Enter
-  appends, and focus stays in the field, because adding one line usually means adding two.
-- **Refining is accumulation by default, not by guarantee.** Adding a line leaves what is
-  already written alone, so the fast path never overwrites — but the textarea stays fully
-  editable, and a past addition can still be revised away. This reduces how often you destroy
-  your own earlier thinking; it does not prevent it. Anything that claims otherwise is wrong.
-  The only real guarantee is history, and drafts are plain files, so `git init ~/compost` with
-  `audio/` ignored buys it for zero code in here.
+- **It is a text box and nothing more.** No append/prepend controls, no stamping, no revision
+  history — it is free text, so you add, revise and delete in it like any other text box. An
+  earlier build grew a line-adder with `↑ top` / `↓ end` buttons on the theory that additive
+  edits would remove the need for versioning; they do not, because the box stays editable
+  anyway, and the controls were clutter wrapped around a plain affordance. Drafts are plain
+  files, so `git init ~/compost` with `audio/` ignored buys real history if it is ever wanted.
 - **Hidden** — `[x]` beside the mark, in dark orange: the one control that takes something
   away must not wear the mark's green or the tags' blue. **One click, and it goes.** No confirm
   step: it sets a flag and **moves nothing** — audio, transcript and meta stay put — so there is
