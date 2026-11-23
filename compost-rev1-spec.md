@@ -215,6 +215,16 @@ Single HTML file. Served locally. Not a webapp.
 - Filter chips: class, date range, **the mark**, and **hidden** — separate axes, each
   filtered on its own
 - Results: date, class, tags, transcript snippet, inline `<audio controls>` per row
+- **Glyphs report, words act.** The mark stays `[ ]` / `[•]` because it shows a state. Anything
+  you click to *do* something is a word in the same brackets: `[hide]`, `[back]`, `[close]`. This
+  exists because the active hunk briefly carried two different `[x]` controls — one hid the hunk,
+  one dismissed the panel — which is exactly the collision a glyph vocabulary invites.
+- **`[<->]` expands the active hunk to fill the screen**, `[>-<]` brings it back, and escape
+  leaves the big view without putting the hunk away — losing your place is not what escape is
+  for. Expanding hands the whole screen to the notes box, which is the only reason to want it.
+  Ascii on purpose: the unicode expand glyphs either tofu in this font stack or fall through to
+  the emoji font, and the dash is what makes `[<->]` read as an arrow rather than an empty tag.
+  You reach it from the list via the active hunk; there is deliberately no direct route yet.
 - **Two separator weights, and only two.** `horz_sep_minor` (1px) divides items inside a group;
   `horz_sep_major` (2px) divides the groups — under the header, between the active post and the
   search, and between the years. Every grey rule across the page is one of these two classes; a

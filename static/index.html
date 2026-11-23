@@ -169,6 +169,16 @@ body {
 }
 .header .random:hover { color: #c8b89a; }
 #active { display: none; padding: 16px 24px; }
+#active.big {
+  position: fixed; inset: 0; z-index: 100; overflow-y: auto;
+  background-color: #0a0a0a; padding: 24px 32px;
+}
+#active.big .active-box { max-width: none; min-height: calc(100vh - 48px);
+                          display: flex; flex-direction: column; }
+/* the point of filling the screen is room to write, so the notes box takes
+   what is left over rather than staying its usual 150px */
+#active.big textarea.notes { flex: 1; min-height: 240px; }
+#active.big .full { max-height: 30vh; }
 #active.open { display: block; }
 .active-box {
   border: 1px solid #2a2a2a; border-radius: 2px;
@@ -179,12 +189,21 @@ body {
   font-family: 'Special Elite', cursive; font-size: 13px; color: #e8d5b5;
   letter-spacing: 3px; text-transform: uppercase;
 }
-.active-box .clear {
-  margin-left: auto; font-size: 16px; line-height: 1; color: #555;
-  border: 1px solid #2a2a2a; border-radius: 2px;
-  padding: 1px 7px 3px; cursor: pointer; user-select: none;
+/* worded, because they do things. the mark stays a glyph because it shows a
+   state — that is the whole rule: glyphs report, words act. */
+.active-box .act {
+  font-size: 11px; color: #555; cursor: pointer; user-select: none;
+  letter-spacing: 0; line-height: 1; flex-shrink: 0;
 }
-.active-box .clear:hover { color: #b87a7a; border-color: #b87a7a; }
+.active-box .act:first-of-type { margin-left: auto; }
+.active-box .act:hover { color: #c8b89a; }
+.active-box .act.close:hover { color: #b87a7a; }
+/* ascii on purpose. the unicode expand glyphs either tofu in this stack or
+   fall through to the emoji font, and [<>] / [><] carries its own direction
+   anyway. the dash is what makes it read as an arrow rather than an empty
+   tag — pushing out, then pulling back in */
+.active-box .act.glyph { font-size: 12px; }
+.active-box .act.glyph.on { color: #c8b89a; }
 .deets { display: grid; grid-template-columns: 92px 1fr; gap: 5px 14px; font-size: 11px; margin-bottom: 12px; }
 .deets .k { color: #555; letter-spacing: 2px; text-transform: uppercase; }
 .deets .v { color: #c8b89a; word-break: break-all; }
@@ -345,7 +364,8 @@ function delHTML(e) {
   const hid = !!e.hidden;
   return `<span class="del${hid ? ' back' : ''}" data-del="${e.id}"
                 onclick="hideHunk('${e.id}', ${!hid}, event)"
-                title="${hid ? BACK_TITLE : DEL_TITLE}">${hid ? '[+]' : '[x]'}</span>`;
+                title="${hid ? BACK_TITLE : DEL_TITLE}"
+          >${hid ? '[back]' : '[hide]'}</span>`;
 }
 
 // one click, both directions. this used to ask twice, from when [x] meant
@@ -428,7 +448,7 @@ async function showYears() {
   results.innerHTML = data.years.map(y => `
     <div class="year">
       <div class="year-header horz_sep_major" onclick="toggleYear('${y.year}')">
-        <span class="arrow">&#9656;</span>${y.year} <span class="count">· ${y.count}</span>
+        <span class="arrow">&#9656;</span>${y.year} <span class="count">· ${y.count} hunks</span>
       </div>
       <div class="year-body" id="yr-${y.year}"></div>
     </div>`).join('');
@@ -540,6 +560,7 @@ function deetRows(e) {
 
 function renderActive(e) {
   flushNotes();        // the box is about to be replaced — don't let a pending save die with it
+  activeWrap.classList.remove('big');
   activeHunk = e;
   notesSaved = e ? (e.notes || '') : null;
   if (!e) {
@@ -552,7 +573,7 @@ function renderActive(e) {
   activeWrap.innerHTML = `
     <div class="active-box">
       <div class="top">
-        <span class="label">active</span>
+        <span class="label">active hunk</span>
         ${markHTML(e)}${delHTML(e)}
         <span class="date">${fmtDate(e.created_at)}</span>
         ${e.title ? `<span class="title">${esc(e.title)}</span>`
@@ -560,7 +581,10 @@ function renderActive(e) {
         <span class="cls">${esc(e.class)}</span>
         ${(e.tags || '').split(',').filter(Boolean).map(t => `<span class="tag">${esc(t)}</span>`).join('')}
         <span class="dur">${fmtDur(e.duration)}</span>
-        <span class="clear" onclick="renderActive(null)" title="clear the active post">×</span>
+        <span class="act glyph" onclick="toggleBig()" id="big-btn"
+              title="fill the screen — more room to write">[&lt;-&gt;]</span>
+        <span class="act close" onclick="renderActive(null)"
+              title="put the active hunk away">[close]</span>
       </div>
       <div class="deets">${deetRows(e)}</div>
       <audio controls preload="none"
@@ -634,6 +658,25 @@ async function saveNotes(id, text) {
     notesState('failed', 'not saved');
   }
 }
+
+function toggleBig(force) {
+  const on = force !== undefined ? force : !activeWrap.classList.contains('big');
+  activeWrap.classList.toggle('big', on);
+  const btn = document.getElementById('big-btn');
+  if (btn) {
+    btn.innerHTML = on ? '[&gt;-&lt;]' : '[&lt;-&gt;]';   // pushing out, then pulling back in
+    btn.classList.toggle('on', on);
+    btn.title = on ? 'back to the page (or hit escape)'
+                   : 'fill the screen — more room to write';
+  }
+  if (on) document.getElementById('notes-box')?.focus();
+}
+
+// escape gets you out of the big view and only out of it — it never puts the
+// hunk away, because losing your place is not what escape is for
+document.addEventListener('keydown', ev => {
+  if (ev.key === 'Escape' && activeWrap.classList.contains('big')) toggleBig(false);
+});
 
 async function setActive(id) {
   const r = await fetch('/api/hunk?id=' + encodeURIComponent(id));
