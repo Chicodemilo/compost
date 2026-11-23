@@ -267,9 +267,10 @@ Single HTML file. Served locally. Not a webapp.
 - The ribbon is **two rows: tabs above, tools below.** The tabs are drawn with slashes and an
   underscore rule — `/songs\  /text\______________` — so it reads as a tab strip in a
   typewriter face without a box-drawing character that might not render.
-- **The rule breaks just past the active tab's right edge**, and nowhere else. That one gap is
-  what makes it read as a tab rather than a button: the open one has nothing ruled across its
-  mouth. When the last tab is the open one the rule simply stops there.
+- **The rule is the open folder's top edge**, not a divider between the two rows — so it is lit
+  the same as the open tab and runs unbroken from end to end. Only the shut tabs are dimmed.
+  That is what makes the strip read as one folder with a tab on it, rather than two rows of
+  controls that happen to sit together.
 - The tools row belongs to whichever tab is open, with `|` marking off each group of tools.
 - **songs** holds the chord rows: the toggle reads `[show]` or `[hide]` — whichever it will do
   next, never both — plus `[clear]`.

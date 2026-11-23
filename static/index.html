@@ -289,10 +289,10 @@ textarea.notes::placeholder { color: #3a3a3a; }
   font-family: 'IBM Plex Mono', monospace; font-size: 11px;
   white-space: pre; user-select: none; overflow: hidden;
 }
-.ribbon .rb-tab { color: #4a4a4a; cursor: pointer; }
+.ribbon .rb-tab { color: #4a4a4a; cursor: pointer; }      /* a shut folder */
 .ribbon .rb-tab:hover { color: #8a8a8a; }
 .ribbon .rb-tab.active { color: #e8d5b5; background-color: #242424; }
-.ribbon .rb-rule { color: #2e2e2e; }
+.ribbon .rb-rule { color: #c8b89a; }                      /* the open folder's edge */
 .ribbon .rb-fill { flex: 1; overflow: hidden; }   /* underscores run to the end */
 .ribbon .rb-tools {
   display: flex; align-items: center; gap: 10px;
@@ -889,20 +889,15 @@ function paintRibbon() {
   const tabs = document.getElementById('rb-tabs');
   const tools = document.getElementById('rb-tools');
   if (!tabs || !tools) return;
-  // the rule breaks at the active tab, which is what makes it read as a tab
-  // rather than a button: the open one has nothing ruled across its mouth
+  // the rule is the open folder's top edge, so it is lit like the active tab
+  // and runs unbroken; only the tabs that are shut are dimmed
   const parts = [];
   TABS.forEach((t, i) => {
-    if (i > 0) {
-      // the break sits just past the active tab's right edge, nowhere else
-      const broken = TABS[i - 1].id === activeTab;
-      parts.push(`<span class="rb-rule">${broken ? '  ' : '__'}</span>`);
-    }
+    if (i > 0) parts.push('<span class="rb-rule">__</span>');
     parts.push(`<span class="rb-tab${t.id === activeTab ? ' active' : ''}"
                       onclick="selectTab('${t.id}')">/${t.label}\\</span>`);
   });
-  const lastIsActive = TABS[TABS.length - 1].id === activeTab;
-  parts.push(`<span class="rb-rule rb-fill">${lastIsActive ? '' : '_'.repeat(300)}</span>`);
+  parts.push(`<span class="rb-rule rb-fill">${'_'.repeat(300)}</span>`);
   tabs.innerHTML = parts.join('');
   tools.innerHTML = TAB_TOOLS[activeTab]();
 }
