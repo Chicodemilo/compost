@@ -238,8 +238,9 @@ Single HTML file. Served locally. Not a webapp.
   `[loop]` and a rate cycle through 1x / 0.75x / 0.5x for catching mumbled words — and
   **mirrors** the `<audio>` element rather than owning it, listening for play and pause so the
   two sets of controls can never disagree.
-- **First ribbon tool: `[chords]`**, which shows or hides the chord rows. A chord row is a line
-  that is *nothing but* chords, so `G7 Am C/G` is one and `A kettle on the stove` is not. The
+- **First ribbon tool: `[chord rows]`.** A chord row is its own line, sitting between the lyric
+  lines — one per return — and the tool shows or hides them. A line counts as a chord row only
+  if it is *nothing but* chords, so `G7 Am C/G` is one and `A kettle on the stove` is not. The
   test is deliberately strict: swallowing a lyric line because it opened with the word "A"
   would be worse than leaving a chord row showing. Bar lines, `%` and `N.C.` count as chords.
 - Hiding chords swaps the textarea for a read-only pane, because you cannot sensibly type into

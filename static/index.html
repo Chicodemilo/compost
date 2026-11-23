@@ -673,14 +673,14 @@ function renderActive(e) {
                 placeholder="work it out here…">${esc(e.notes || '')}</textarea>
       <pre class="notes-read" id="notes-read" hidden></pre>
       <div class="ribbon horz_sep_minor on_top">
-        <span class="tool on" id="rb-chords" onclick="toggleChords()"
-              title="show or hide the chord rows">[chords]</span>
+        <span class="tool on" id="rb-chord-rows" onclick="toggleChordRows()"
+              title="show or hide the chord rows">[chord rows]</span>
       </div>
     </div>`;
   rbRateIdx = 0;                       // a new hunk starts at full speed
   wireRibbon(activeWrap.querySelector('audio'));
-  chordsOn = true;                     // and with its chords showing
-  paintChords();
+  chordRowsOn = true;                     // and with its chords showing
+  paintChordRows();
   const box = document.getElementById('notes-box');
   showCount(box.value.length);
   box.addEventListener('input', () => {
@@ -755,29 +755,29 @@ const isChordRow = line => {
   return t.length > 0 && t.every(x => CHORD.test(x) || CHORD_EXTRA.test(x));
 };
 
-const stripChords = text =>
+const stripChordRows = text =>
   text.split('\n').filter(l => !isChordRow(l)).join('\n');
 
-let chordsOn = true;
+let chordRowsOn = true;
 
-function toggleChords() {
-  chordsOn = !chordsOn;
-  paintChords();
+function toggleChordRows() {
+  chordRowsOn = !chordRowsOn;
+  paintChordRows();
 }
 
-function paintChords() {
+function paintChordRows() {
   const box = document.getElementById('notes-box');
   const read = document.getElementById('notes-read');
-  const btn = document.getElementById('rb-chords');
+  const btn = document.getElementById('rb-chord-rows');
   if (!box || !read) return;
-  btn?.classList.toggle('on', chordsOn);
-  if (btn) btn.title = chordsOn ? 'hide the chord rows' : 'show the chord rows — editing comes back too';
-  if (chordsOn) {
+  btn?.classList.toggle('on', chordRowsOn);
+  if (btn) btn.title = chordRowsOn ? 'hide the chord rows' : 'show the chord rows — editing comes back too';
+  if (chordRowsOn) {
     read.hidden = true;
     box.hidden = false;
   } else {
     flushNotes();                       // never hide unsaved text behind a view switch
-    read.textContent = stripChords(box.value) || '(nothing but chords)';
+    read.textContent = stripChordRows(box.value) || '(nothing but chords)';
     box.hidden = true;
     read.hidden = false;
   }
