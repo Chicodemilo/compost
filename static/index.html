@@ -107,10 +107,12 @@ body {
 .active-box .mark { margin-left: 0; padding-left: 0; }
 #results { padding: 8px 24px 60px; }
 .hunk { padding: 14px 0; }
-/* the row's controls track the text column instead of the window edge —
-   on a wide screen an auto margin strands them yards from the hunk */
+/* the controls sit out at the right edge. they were pulled in to the text
+   column back when the separators were nearly invisible and a control out
+   there looked unmoored — the brighter rules give them a line to sit on. */
 .hunk .meta-row { display: flex; gap: 14px; align-items: baseline;
-                   margin-bottom: 6px; max-width: 900px; }
+                   margin-bottom: 6px; }
+.hunk .ctrls { padding-right: 6px; }
 .hunk .date, .active-box .date { color: #7a8ab8; font-size: 11px; letter-spacing: 1px; }
 .hunk .cls, .active-box .cls {
   font-size: 9px; color: #555; letter-spacing: 2px; text-transform: uppercase;
@@ -868,6 +870,7 @@ function clearChordRows() {
 const TABS = [
   { id: 'songs', label: 'songs' },
   { id: 'text',  label: 'text'  },
+  { id: 'file',  label: 'file'  },
 ];
 let activeTab = 'songs';
 
@@ -884,7 +887,70 @@ const TAB_TOOLS = {
     <span class="tool" onclick="wrapSelection('*')" title="*italic* the selected words">[italic]</span>
     <span class="rb-sep">|</span>
     <span class="rb-hint" id="rb-hint">select some words first</span>`,
+  file: () => `
+    <span class="tool" onclick="openAsPdf()" title="a printable sheet — save as pdf from the dialog">[open as pdf]</span>
+    <span class="tool" onclick="copyAsMarkdown()" title="the notes, as markdown, on the clipboard">[copy as markdown]</span>
+    <span class="tool" onclick="revealActive()" title="show the recording in Finder">[reveal in finder]</span>
+    <span class="rb-sep">|</span>
+    <span class="rb-hint" id="rb-hint"></span>`,
 };
+
+// ---- file tools ----
+const hunkName = h => (h && h.title && h.title.trim()) || fmtDate(h && h.created_at);
+
+function fileSays(msg, bad) {
+  const hint = document.getElementById('rb-hint');
+  if (!hint) return;
+  hint.textContent = msg;
+  hint.classList.toggle('nag', !!bad);
+  setTimeout(() => { hint.textContent = ''; hint.classList.remove('nag'); }, 2500);
+}
+
+// the notes are already a monospace chord sheet, so printing is a matter of
+// not getting in the way: same face, same spaces, stanzas kept whole
+function printableDoc(name, when, notes) {
+  const stanzas = notes.replace(/\s+$/, '').split(/\n{2,}/)
+    .map(b => `<div class="stanza">${esc(b)}</div>`).join('');
+  return `<!doctype html><html><head><meta charset="utf-8">
+<title>${esc(name)}</title>
+<style>
+  @page { margin: 18mm; }
+  body { background: #fff; color: #111; font-family: 'IBM Plex Mono', ui-monospace, monospace;
+         font-size: 11pt; line-height: 1.55; margin: 0; }
+  h1 { font-size: 15pt; font-weight: 700; margin: 0; letter-spacing: 1px; }
+  .when { font-size: 9pt; color: #555; margin-top: 2px; }
+  hr { border: 0; border-top: 1px solid #bbb; margin: 10px 0 16px; }
+  .stanza { white-space: pre; break-inside: avoid; page-break-inside: avoid; margin-bottom: 14px; }
+  @media print { .stanza { white-space: pre-wrap; } }
+</style></head><body>
+<h1>${esc(name)}</h1><div class="when">${esc(when)}</div><hr>
+${stanzas}
+<script>window.onload = function () { window.print(); };<\/script>
+</body></html>`;
+}
+
+function openAsPdf() {
+  const box = document.getElementById('notes-box');
+  if (!activeHunk || !box || !box.value.trim()) { fileSays('nothing written yet', true); return; }
+  flushNotes();
+  const w = window.open('', '_blank');
+  if (!w) { fileSays('the browser blocked the window', true); return; }
+  w.document.write(printableDoc(hunkName(activeHunk), fmtDate(activeHunk.created_at), box.value));
+  w.document.close();           // the written page prints itself on load
+}
+
+async function copyAsMarkdown() {
+  const box = document.getElementById('notes-box');
+  if (!activeHunk || !box || !box.value.trim()) { fileSays('nothing written yet', true); return; }
+  flushNotes();
+  const md = `# ${hunkName(activeHunk)}\n\n${fmtDate(activeHunk.created_at)}\n\n${box.value.trimEnd()}\n`;
+  try {
+    await navigator.clipboard.writeText(md);
+    fileSays(`copied ${md.length} chars`);
+  } catch (err) {
+    fileSays('clipboard refused', true);
+  }
+}
 
 function paintRibbon() {
   const tabs = document.getElementById('rb-tabs');
