@@ -229,7 +229,7 @@ Single HTML file. Served locally. Not a webapp.
   Ascii on purpose: the unicode expand glyphs either tofu in this font stack or fall through to
   the emoji font, and the dash is what makes `[<->]` read as an arrow rather than an empty tag.
   You reach it from the list via the active hunk; there is deliberately no direct route yet.
-- The big view is **a modal, not a second page**. It insets 25px (5px under 600px wide) so the
+- The big view is **a modal, not a second page**. It insets 25px — 40px past 1200px wide, 5px under 600px — so the
   pile stays visible and dimmed around the edges, carries a border and a shadow, and closes on
   a click in the dimmed margin as well as on escape. Filling the viewport edge to edge read as
   a navigation, and the whole point is that it is something laid on top which you can put down.
