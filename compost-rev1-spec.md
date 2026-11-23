@@ -243,8 +243,9 @@ Single HTML file. Served locally. Not a webapp.
   if it is *nothing but* chords, so `G7 Am C/G` is one and `A kettle on the stove` is not. The
   test is deliberately strict: swallowing a lyric line because it opened with the word "A"
   would be worse than leaving a chord row showing. Bar lines, `%` and `N.C.` count as chords.
-- Turning chord rows on opens **a row of its own above every line of words** — not another line
-  of text, a lane. Chords in it are **chips you drag left and right** over the words. Anything
+- Turning chord rows on opens **a row of its own above every return** — blank lines included,
+  since a rest or an instrumental gap is exactly where you want somewhere to put a chord. Not
+  another line of text, a lane. Chords in it are **chips you drag left and right** over the words. Anything
   with a space between it is a separate chip, so a bridge is just a run of them. The words are
   read-only while the lanes are open; you go back to the plain box to change them.
 - **A chip's position is its character column**, which is why the file stays an ordinary chord

@@ -337,7 +337,6 @@ textarea.notes::placeholder { color: #3a3a3a; }
   color: #e8d5b5; font-family: 'IBM Plex Mono', monospace; font-size: 13px;
   line-height: 1.7; white-space: pre-wrap; word-break: break-word;
 }
-.lane-break { height: 14px; }
 .hunk .title, .active-box .title { color: #e8d5b5; font-size: 12px; letter-spacing: 1px; }
 .hunk .title.none, .active-box .title.none { color: #3a3a3a; font-style: italic; letter-spacing: 0; }
 .hunk .date.pick { cursor: pointer; }
@@ -871,12 +870,13 @@ function paintChordRows() {
   }
   flushNotes();                        // never strand unsaved words behind a view switch
   const rows = laneRows = parseLanes(box.value);
-  lanes.innerHTML = rows.map((r, i) => r.lyric.trim() === ''
-    ? '<div class="lane-break"></div>'
-    : `<div class="lane">
-         <div class="chord-row" data-i="${i}">${chipsHTML(r.chord || '')}</div>
-         <div class="lane-lyric">${esc(r.lyric)}</div>
-       </div>`).join('') || '<div class="lane-lyric" style="color:#444">nothing written yet</div>';
+  // every return gets a row, blank lines included — a rest or an instrumental
+  // gap is exactly where you want somewhere to put a chord
+  lanes.innerHTML = rows.map((r, i) =>
+    `<div class="lane">
+       <div class="chord-row" data-i="${i}">${chipsHTML(r.chord || '')}</div>
+       <div class="lane-lyric">${esc(r.lyric) || '&nbsp;'}</div>
+     </div>`).join('') || '<div class="lane-lyric" style="color:#444">nothing written yet</div>';
   lanes.querySelectorAll('.chord-row').forEach(row => { wireChordRow(row); placeChips(row); });
   box.hidden = true;
   lanes.hidden = false;
