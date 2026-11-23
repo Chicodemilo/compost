@@ -44,15 +44,15 @@ that the plumbing might save someone the evening it takes to build.
   class list. Every row carries a mark — `[ ]` until you flag it, `[•]` after —
   meaning only *there is something here*. It is a third axis, not a tag and not
   a rating: one bit, one direction, no scale and no opposite, written only by
-  you and filtered on its own. It lands in the entry's meta JSON, so it
+  you and filtered on its own. It lands in the hunk's meta JSON, so it
   survives `rebuild` like everything else that matters. A dark-orange `[x]`
-  beside it puts an entry out of view in one click, and it leaves the pile
+  beside it puts an hunk out of view in one click, and it leaves the pile
   entirely: out of search, out of the year counts, out of the header total,
   never drawn by `random`. Nothing moves on disk and nothing is deleted; the
-  `hidden` chip shows that pile, where `[+]` puts an entry back in one tap. Class edits apply to future filing only; already-filed entries
+  `hidden` chip shows that pile, where `[+]` puts an hunk back in one tap. Class edits apply to future filing only; already-filed hunks
   keep their labels. An active-post box sits above the search: `random`
-  pulls one entry out of the pile (honoring whatever class chips are lit),
-  clicking any entry's date promotes it, and the box holds it — whole
+  pulls one hunk out of the pile (honoring whatever class chips are lit),
+  clicking any hunk's date promotes it, and the box holds it — whole
   transcript untruncated in a scrollable pane, every column the schema
   carries, and a clickable audio path that reveals the file in Finder.
   The active post also carries **notes** — a self-saving text box where you

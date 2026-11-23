@@ -13,7 +13,7 @@ bits for [WHTC](https://thewitchinghourtone.club), a
 [show](https://www.youtube.com/@TheWitchingHourToneClub) about old forgotten 78s
 and new under-heard songs, and work thoughts. Existing capture works fine
 (press-and-hold → Voice Memos). **Retrieval is broken.**
-Everything lands in one undifferentiated list that has to be scrolled linearly. Most entries are
+Everything lands in one undifferentiated list that has to be scrolled linearly. Most hunks are
 bad. The good ones are unreachable because they're buried behind the bad ones.
 
 Rev 1 solves retrieval. It does not touch capture.
@@ -35,9 +35,9 @@ These are load-bearing. Do not optimize them away.
    separate field. Machine output and human output never share a box.
 5. **Uncertainty routes to `compost`.** An honest unsorted pile beats a confident wrong folder.
 6. **Nothing is ever deleted.** No `dead` state, no trash, no expiry, no grade that condemns
-   an entry. Material either gets used or sits. A person may put an entry **out of view** (§9),
+   an hunk. Material either gets used or sits. A person may put an hunk **out of view** (§9),
    which is a different act entirely: a flag, reversible in one click, with every file left
-   exactly where it was. Nothing in this repo unlinks an entry.
+   exactly where it was. Nothing in this repo unlinks an hunk.
 
 ---
 
@@ -93,13 +93,13 @@ iPhone (press-and-hold → Voice Memos)
 ├── audio/              # copies of source audio, never modified
 │   └── 2026/09/
 │       └── 20260902-143312-a3f9.m4a
-├── transcripts/        # one .txt per entry, same stem as audio — machine output
+├── transcripts/        # one .txt per hunk, same stem as audio — machine output
 │   └── 2026/09/
 │       └── 20260902-143312-a3f9.txt
-├── notes/              # one .md per entry — the reader's own writing (§9)
+├── notes/              # one .md per hunk — the reader's own writing (§9)
 │   └── 2026/09/        #   absent until you write something
 │       └── 20260902-143312-a3f9.md
-├── meta/               # one .json per entry — tags, class, location, source
+├── meta/               # one .json per hunk — tags, class, location, source
 │   └── 2026/09/
 │       └── 20260902-143312-a3f9.json
 ├── compost.db          # SQLite index — DISPOSABLE, rebuildable
@@ -117,7 +117,7 @@ makes the DB disposable.
 ## 6. Data model
 
 ```sql
-CREATE TABLE entries (
+CREATE TABLE hunks (
     id          TEXT PRIMARY KEY,     -- 20260902-143312-a3f9
     created_at  TEXT NOT NULL,        -- ISO8601, from file mtime
     source      TEXT NOT NULL,        -- 'vm' | 'note'  (note = rev 2)
@@ -135,12 +135,12 @@ CREATE TABLE entries (
 );
 
 CREATE TABLE tags (
-    entry_id    TEXT NOT NULL REFERENCES entries(id),
+    hunk_id    TEXT NOT NULL REFERENCES hunks(id),
     tag         TEXT NOT NULL,
-    PRIMARY KEY (entry_id, tag)
+    PRIMARY KEY (hunk_id, tag)
 );
 
-CREATE VIRTUAL TABLE entries_fts USING fts5(
+CREATE VIRTUAL TABLE hunks_fts USING fts5(
     id UNINDEXED, transcript, tokenize='porter'
 );
 ```
@@ -159,7 +159,13 @@ This archive's own roster adds a fifth, `whtc`, for show bits, which is exactly
 the intended use: add a class the day you notice you keep filing the same kind
 of thing, and the clerk starts filing by it.
 
-`compost` is not the failure bucket. It is the default and expected home for most entries —
+**A unit of compost is a hunk.** One recording, its transcript, and whatever you have written
+about it. Not an "entry", not an "item", not a "record" — a hunk has mass, which is what you are
+hunting for in the pile, and a half-sung fragment really is a hunk of a song that does not exist
+yet. Note that in a git repo "hunk" already means a diff hunk; that collision was weighed and
+accepted, since diff hunks live in terminals and these live in files.
+
+`compost` is not the failure bucket. It is the default and expected home for most hunks —
 the unresolved pile, which is the most interesting part of the system. Naming matters:
 never call it "unsorted" in code, comments, or UI.
 
@@ -168,7 +174,7 @@ never call it "unsorted" in code, comments, or UI.
 ```python
 classify(transcript: str) -> str    # one of the roster's classes
 tag(transcript: str) -> list[str]   # 3-7 lowercase keywords, no invention
-route(entry_id: str, cls: str)      # writes class to meta + db
+route(hunk_id: str, cls: str)      # writes class to meta + db
 ```
 
 **Classifier rules:**
@@ -193,8 +199,8 @@ record time or not at all.
 ```json
 { "ts": "2026-09-02T14:33:12Z", "lat": 30.2672, "lon": -97.7431 }
 ```
-Ingest matches sidecars to entries by timestamp proximity (±90s window). Unmatched sidecars
-are discarded silently; unmatched entries just have null location. No error state.
+Ingest matches sidecars to hunks by timestamp proximity (±90s window). Unmatched sidecars
+are discarded silently; unmatched hunks just have null location. No error state.
 
 Do not block rev 1 on this.
 
@@ -223,18 +229,18 @@ Single HTML file. Served locally. Not a webapp.
   `background-color`, since the `background` shorthand wipes the gradient.
 - **Opens on `compost`, not on "all" and not on the classified folders.** Classified material is
   already findable. The unresolved pile is the only thing that benefits from being stumbled over.
-- **`surprise me` button** — pulls one random entry from `compost`. Random is random: the
+- **`surprise me` button** — pulls one random hunk from `compost`. Random is random: the
   filters narrow the pile, and nothing weights the draw. No age weighting, no de-weighting what
   has already been served, no record of what the button has shown. A rigged draw is a ranking
   wearing a disguise, and it would quietly decide what you are allowed to stumble into.
-- **The mark** — one bit per entry meaning *there is something here*. One gesture, one
+- **The mark** — one bit per hunk meaning *there is something here*. One gesture, one
   direction, no scale and no opposite. It is not a tag and does not compete with tags: tags say
-  what an entry is about and the clerk writes them, the mark says a human found something and
+  what an hunk is about and the clerk writes them, the mark says a human found something and
   only a human writes it. Deliberately **not** a star rating — a scale would grade material
   that hasn't finished breaking down, and a grade stamped today is wrong in eight months, wrong
-  with authority, because the entry it dismissed never gets shown again. The absence of the mark
+  with authority, because the hunk it dismissed never gets shown again. The absence of the mark
   is the only negative signal, and it costs nothing to leave.
-- Marking writes `status` to the entry's meta JSON first, db second. It rides a `rebuild` with
+- Marking writes `status` to the hunk's meta JSON first, db second. It rides a `rebuild` with
   no special-casing — unlike the class roster, the mark needs no exception to files-are-truth.
 - **Notes** — a text box on the active post where you work an idea out. It saves itself:
   debounced while typing, flushed on blur and on anything that tears the box down. A note you
@@ -259,14 +265,14 @@ Single HTML file. Served locally. Not a webapp.
   step: it sets a flag and **moves nothing** — audio, transcript and meta stay put — so there is
   nothing to be careful about and the undo is one tap away. Ceremony belongs in front of
   irreversible acts, and this is not one.
-- A hidden entry leaves the pile completely: out of search, out of the year counts, out of the
+- A hidden hunk leaves the pile completely: out of search, out of the year counts, out of the
   header total, and never drawn by `surprise me`. "Out of view" has to mean out of view, or the
   pile stops being trustworthy as the thing you are looking at.
-- The `hidden` chip shows that pile and only that pile, where each entry wears `[+]` to come
+- The `hidden` chip shows that pile and only that pile, where each hunk wears `[+]` to come
   back. Restoring is a single tap — it adds something to a view, so a misfire costs a click
-  rather than a thought you meant to keep. No view ever mixes hidden and live entries.
+  rather than a thought you meant to keep. No view ever mixes hidden and live hunks.
 
-No deleting, no auth, no accounts. The mark is the one write the page makes to an entry, and it
+No deleting, no auth, no accounts. The mark is the one write the page makes to an hunk, and it
 touches nothing the pipeline produced — not the transcript, not the class, not the tags.
 
 ---
@@ -296,7 +302,7 @@ audio in the browser. Delete `compost.db`, run `rebuild`, confirm identical resu
 > before building Phase 3.
 
 ### Phase 3 — Classifier + tagger (only if Phase 2 leaves a gap)
-Add classify/tag/route. Backfill existing entries. Add filter chips + `surprise me`.
+Add classify/tag/route. Backfill existing hunks. Add filter chips + `surprise me`.
 
 **Acceptance:** ≥90% of song fragments land in `song`; nothing lands in a wrong confident class
 more than rarely; the `compost` pile is large and that is correct.
@@ -318,11 +324,11 @@ more than rarely; the `compost` pile is large and that is correct.
   source material.
 - **Idempotency:** re-running ingest on an already-processed file must be a no-op, not a
   duplicate. launchd will fire spuriously.
-- **Never take an entry's meta file out of `meta/`.** Idempotency comes from `meta/*.json`
-  alone, so an entry whose meta moves or vanishes reads as never-processed — and since the
+- **Never take an hunk's meta file out of `meta/`.** Idempotency comes from `meta/*.json`
+  alone, so an hunk whose meta moves or vanishes reads as never-processed — and since the
   Voice Memos recording is deliberately left alone, the next WatchPaths fire re-ingests it
   under a new id, minutes later. This is why hiding is a flag and not a move: anything that
-  relocates entries has to carry a tombstone, and a flag needs none.
+  relocates hunks has to carry a tombstone, and a flag needs none.
 
 ---
 
@@ -334,12 +340,12 @@ Do not build these. They are real and they come later.
   already works; a button saves ~zero presses and delays the pipeline. The pipeline must not
   know or care what triggered a recording.
 - Apple Notes intake via AppleScript (`osascript`, `body of note ... of account "iCloud"`),
-  plus the one-time LLM pass to split the existing blob into dated entries. `source='note'`
+  plus the one-time LLM pass to split the existing blob into dated hunks. `source='note'`
   is already in the schema for this.
 - The ratchet: kill/keep/promote cycling. The mark (§9) spends the `status` column and is as
   far as this goes — a flag, not a cycle. There is still **no kill state**: `hidden` says where
   something is shown, never what it is worth. Nothing may ever record a judgment against an
-  entry, and nothing may ever delete one.
+  hunk, and nothing may ever delete one.
 - **Growing a note into the finished thing** — notes as a writing surface rather than an
   annotation, so a song fragment in the pile becomes the song. Compost and seed in one place,
   then grow it. The field already holds prose and already searches, so the groundwork is laid;

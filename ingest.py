@@ -76,7 +76,7 @@ def resolve_recordings_dir() -> Path:
 def processed_source_files() -> set[str]:
     """Idempotency from files alone: every meta json records its source file name.
 
-    Hiding an entry sets a flag and moves nothing, so every processed memo
+    Hiding an hunk sets a flag and moves nothing, so every processed memo
     keeps a meta file right here and this stays a single-directory scan."""
     seen = set()
     for p in META.rglob("*.json"):
@@ -224,7 +224,7 @@ def ingest_one(src: Path, strikes: dict[str, int]) -> None:
         if n >= GIVE_UP_AFTER:
             log(f"GIVE UP {src.name}: zero-byte on {n} consecutive checks — likely deleted "
                 f"in iCloud; downgrading to a bare stat per fire (delete its {STRIKES.name} "
-                "entry to force a full retry)")
+                "hunk to force a full retry)")
         else:
             log(f"SKIP {src.name}: size never stabilized (iCloud still downloading?) [strike {n}/{GIVE_UP_AFTER}]")
         return
@@ -232,9 +232,9 @@ def ingest_one(src: Path, strikes: dict[str, int]) -> None:
         save_strikes(strikes)
 
     mtime = recorded_at(src)
-    entry_id = make_id(mtime)
+    hunk_id = make_id(mtime)
     ym = datetime.fromtimestamp(mtime).strftime("%Y/%m")
-    audio_dst = AUDIO / ym / f"{entry_id}{src.suffix}"
+    audio_dst = AUDIO / ym / f"{hunk_id}{src.suffix}"
     audio_dst.parent.mkdir(parents=True, exist_ok=True)
     try:
         shutil.copy2(src, audio_dst)  # read + copy only; never touch the VM dir
@@ -249,17 +249,17 @@ def ingest_one(src: Path, strikes: dict[str, int]) -> None:
         FAILED.mkdir(parents=True, exist_ok=True)
         shutil.copy2(audio_dst, FAILED / audio_dst.name)
         err = getattr(e, "stderr", b"")
-        (FAILED / f"{entry_id}.err").write_text(
+        (FAILED / f"{hunk_id}.err").write_text(
             f"{type(e).__name__}: {e}\n{err.decode(errors='replace') if err else ''}"
         )
-        log(f"FAIL {src.name} -> inbox_failed/{entry_id}.err")
-        dispatch(entry_id, "failed", f"transcription error on {src.name}")
+        log(f"FAIL {src.name} -> inbox_failed/{hunk_id}.err")
+        dispatch(hunk_id, "failed", f"transcription error on {src.name}")
         return
 
     for d, name, content in [
-        (TRANSCRIPTS, f"{entry_id}.txt", text),
-        (META, f"{entry_id}.json", json.dumps({
-            "id": entry_id,
+        (TRANSCRIPTS, f"{hunk_id}.txt", text),
+        (META, f"{hunk_id}.json", json.dumps({
+            "id": hunk_id,
             "created_at": datetime.fromtimestamp(mtime).astimezone().isoformat(timespec="seconds"),
             "source": "vm",
             "source_file": src.name,
@@ -279,15 +279,15 @@ def ingest_one(src: Path, strikes: dict[str, int]) -> None:
         p.write_text(content)
 
     words = len(text.split())
-    log(f"OK {src.name} -> {entry_id} ({words} words)")
-    dispatch(entry_id, "ingested", f"{words} words, {duration_of(audio_dst) or '?'}s")
+    log(f"OK {src.name} -> {hunk_id} ({words} words)")
+    dispatch(hunk_id, "ingested", f"{words} words, {duration_of(audio_dst) or '?'}s")
 
     try:
         import classify
-        r = classify.apply(entry_id)
-        log(f"CLASS {entry_id} -> {r['class']} {r['tags']}")
+        r = classify.apply(hunk_id)
+        log(f"CLASS {hunk_id} -> {r['class']} {r['tags']}")
     except Exception as e:
-        log(f"classify deferred for {entry_id} ({e}) — `classify.py backfill` will catch it")
+        log(f"classify deferred for {hunk_id} ({e}) — `classify.py backfill` will catch it")
 
 
 def doctor() -> None:
@@ -322,7 +322,7 @@ def doctor() -> None:
 def backfill_titles() -> None:
     """Fill title onto meta written before ingest kept it. Reads the copies in
     ~/compost/audio, so it needs no Full Disk Access and never touches the
-    originals. Idempotent — entries already carrying the key are left alone."""
+    originals. Idempotent — hunks already carrying the key are left alone."""
     filled = blank = already = 0
     for mp in sorted(META.rglob("*.json")):
         try:
@@ -383,7 +383,7 @@ def main() -> None:
                 pass
     try:
         import index_db
-        log(f"index rebuilt: {index_db.rebuild()} entries")
+        log(f"index rebuilt: {index_db.rebuild()} hunks")
     except Exception as e:
         log(f"index rebuild failed (files are fine, rerun index_db.py rebuild): {e}")
 

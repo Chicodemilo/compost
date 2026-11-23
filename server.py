@@ -5,11 +5,11 @@ GET /                    the search page
 GET /api/search?q=...    FTS5 search across all years
                          all search routes take &mark=1 (only marked) and
                          &hidden=1 (only hidden; otherwise hidden are excluded)
-GET /api/search?year=Y   one year's entries (browse view loads years lazily)
+GET /api/search?year=Y   one year's hunks (browse view loads years lazily)
 GET /api/search          per-year counts for the folded browse view
 GET /audio/<rel>         audio with Range support so <audio> can seek
-GET /api/entry?id=...    one entry, whole transcript, every column + tags
-GET /api/random          one entry at random (honors ?cls= like search does)
+GET /api/hunk?id=...    one hunk, whole transcript, every column + tags
+GET /api/random          one hunk at random (honors ?cls= like search does)
 POST /api/reveal         {"path": audio_path} — reveal that file in Finder
 POST /api/mark           {"id": ..., "mark": true|false} — flag "something here"
 POST /api/hide           {"id": ..., "hide": true|false} — out of view, or back
@@ -17,7 +17,7 @@ POST /api/notes          {"id": ..., "text": ...} — the reader's own writing
 GET /api/classes         the class roster (name -> writeup)
 POST /api/classes        create or update a class {"name": ..., "writeup": ...}
 DELETE /api/classes/<name>  retire a class — falls forward only: already-filed
-                            entries keep it; the clerk just stops offering it
+                            hunks keep it; the clerk just stops offering it
 """
 
 import json
@@ -35,26 +35,26 @@ DB = COMPOST / "compost.db"
 STATIC = Path(__file__).parent / "static"
 PORT = 8771
 CLASS_NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,23}$")
-ENTRY_ID_RE = re.compile(r"^\d{8}-\d{6}-[0-9a-f]{4}$")  # a path is built from this
+HUNK_ID_RE = re.compile(r"^\d{8}-\d{6}-[0-9a-f]{4}$")  # a path is built from this
 
 AUDIO_TYPES = {".m4a": "audio/mp4", ".qta": "audio/mp4", ".wav": "audio/wav"}
 
 
-TAGS_SUB = "(SELECT group_concat(tag, ',') FROM tags WHERE entry_id = e.id) AS tags"
+TAGS_SUB = "(SELECT group_concat(tag, ',') FROM tags WHERE hunk_id = e.id) AS tags"
 
 
 def class_filter(conn, cls: str):
-    """Honors classes actually worn by entries, not just the live roster —
+    """Honors classes actually worn by hunks, not just the live roster —
     retired classes never vanish from history, so never from here."""
     roster = [r[0] for r in conn.execute("SELECT name FROM classes ORDER BY rowid")]
-    present = {r[0] for r in conn.execute("SELECT DISTINCT class FROM entries")}
+    present = {r[0] for r in conn.execute("SELECT DISTINCT class FROM hunks")}
     selected = [c for c in cls.split(",") if c in (set(roster) | present)]  # unknown names ignored
     return roster, present, selected
 
 
 def row_filter(selected: list, marked: bool, hidden: bool = False) -> tuple[list, list]:
     """Conditions for the filters, ANDed. Class, mark and hidden are separate
-    axes — a marked entry keeps whatever class it wears, compost included.
+    axes — a marked hunk keeps whatever class it wears, compost included.
 
     Hidden is always pinned one way or the other, never left open: the default
     pile excludes it, and asking for it shows that and nothing else. There is
@@ -76,8 +76,8 @@ FLAGS = {"status", "hidden"}   # the only flag columns the page may write
 MAX_NOTES = 10_000
 
 
-def set_notes(entry_id: str, text: str) -> dict | None:
-    """Save the reader's own writing for one entry.
+def set_notes(hunk_id: str, text: str) -> dict | None:
+    """Save the reader's own writing for one hunk.
 
     It lives in notes/<id>.md, a sibling of the transcript, and never touches
     it. The transcript is what the machine heard; the notes are what you made
@@ -85,10 +85,10 @@ def set_notes(entry_id: str, text: str) -> dict | None:
     destroying your thinking — and what lets you still tell what you actually
     said from what you decided afterwards you meant.
     """
-    if not (META / entry_id[:4] / entry_id[4:6] / f"{entry_id}.json").is_file():
+    if not (META / hunk_id[:4] / hunk_id[4:6] / f"{hunk_id}.json").is_file():
         return None
     text = text.strip()
-    dp = NOTES / entry_id[:4] / entry_id[4:6] / f"{entry_id}.md"
+    dp = NOTES / hunk_id[:4] / hunk_id[4:6] / f"{hunk_id}.md"
     if text:
         dp.parent.mkdir(parents=True, exist_ok=True)
         dp.write_text(text)
@@ -96,21 +96,21 @@ def set_notes(entry_id: str, text: str) -> dict | None:
         dp.unlink()   # cleared by hand: don't leave an empty file behind
     try:
         conn = sqlite3.connect(DB)
-        conn.execute("UPDATE entries SET notes = ? WHERE id = ?", (text, entry_id))
+        conn.execute("UPDATE hunks SET notes = ? WHERE id = ?", (text, hunk_id))
         row = conn.execute(
-            "SELECT transcript, title FROM entries WHERE id = ?", (entry_id,)).fetchone()
-        conn.execute("DELETE FROM entries_fts WHERE id = ?", (entry_id,))
-        conn.execute("INSERT INTO entries_fts (id, transcript, title, notes) VALUES (?,?,?,?)",
-                     (entry_id, row[0] or "", row[1] or "", text))
+            "SELECT transcript, title FROM hunks WHERE id = ?", (hunk_id,)).fetchone()
+        conn.execute("DELETE FROM hunks_fts WHERE id = ?", (hunk_id,))
+        conn.execute("INSERT INTO hunks_fts (id, transcript, title, notes) VALUES (?,?,?,?)",
+                     (hunk_id, row[0] or "", row[1] or "", text))
         conn.commit()
         conn.close()
     except sqlite3.Error:
         pass  # db is disposable; the file is written, so rebuild agrees
-    return load_entry(entry_id)
+    return load_hunk(hunk_id)
 
 
-def set_flag(entry_id: str, field: str, value) -> dict | None:
-    """Write one flag to the entry's meta json, then the db.
+def set_flag(hunk_id: str, field: str, value) -> dict | None:
+    """Write one flag to the hunk's meta json, then the db.
 
     Meta is truth: the json is what survives a rebuild, the db write only
     keeps the open page honest. Both flags are the reader's, not the clerk's,
@@ -120,7 +120,7 @@ def set_flag(entry_id: str, field: str, value) -> dict | None:
     """
     if field not in FLAGS:
         return None
-    mp = META / entry_id[:4] / entry_id[4:6] / f"{entry_id}.json"
+    mp = META / hunk_id[:4] / hunk_id[4:6] / f"{hunk_id}.json"
     if not mp.is_file():
         return None
     m = json.loads(mp.read_text())
@@ -128,30 +128,30 @@ def set_flag(entry_id: str, field: str, value) -> dict | None:
     mp.write_text(json.dumps(m, indent=2))
     try:
         conn = sqlite3.connect(DB)
-        conn.execute(f"UPDATE entries SET {field} = ? WHERE id = ?", (value, entry_id))
+        conn.execute(f"UPDATE hunks SET {field} = ? WHERE id = ?", (value, hunk_id))
         conn.commit()
         conn.close()
     except sqlite3.Error:
         pass  # db is disposable; the next rebuild picks it up from meta
-    return load_entry(entry_id)
+    return load_hunk(hunk_id)
 
 
-def load_entry(entry_id: str = "", cls: str = "", marked: bool = False,
+def load_hunk(hunk_id: str = "", cls: str = "", marked: bool = False,
                hidden: bool = False):
-    """One whole entry — full transcript, every column, tags joined.
-    No entry_id means pick at random from whatever the filters allow."""
+    """One whole hunk — full transcript, every column, tags joined.
+    No hunk_id means pick at random from whatever the filters allow."""
     conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
-    if entry_id:
+    if hunk_id:
         row = conn.execute(
-            f"SELECT e.*, {TAGS_SUB} FROM entries e WHERE e.id = ?", (entry_id,)).fetchone()
+            f"SELECT e.*, {TAGS_SUB} FROM hunks e WHERE e.id = ?", (hunk_id,)).fetchone()
     else:
         _, _, selected = class_filter(conn, cls)
         # random is random: the filters narrow the pile, nothing weights the draw
         conds, params = row_filter(selected, marked, hidden)
         where = f" WHERE {' AND '.join(conds)}" if conds else ""
         row = conn.execute(
-            f"SELECT e.*, {TAGS_SUB} FROM entries e{where} ORDER BY RANDOM() LIMIT 1",
+            f"SELECT e.*, {TAGS_SUB} FROM hunks e{where} ORDER BY RANDOM() LIMIT 1",
             params).fetchone()
     conn.close()
     return dict(row) if row else None
@@ -170,15 +170,15 @@ def query_db(q: str, year: str = "", cls: str = "", marked: bool = False,
         # quote each term so user input can't break FTS5 syntax
         match = " ".join(f'"{t}"' for t in re.findall(r"[^\s\"]+", q))
         rows = conn.execute(
-            f"""SELECT e.*, snippet(entries_fts, -1, '<mark>', '</mark>', '…', 24) AS snip, {tags_sub}
-               FROM entries_fts f JOIN entries e ON e.id = f.id
-               WHERE entries_fts MATCH ?{cfilter} ORDER BY e.created_at DESC LIMIT ?""",
+            f"""SELECT e.*, snippet(hunks_fts, -1, '<mark>', '</mark>', '…', 24) AS snip, {tags_sub}
+               FROM hunks_fts f JOIN hunks e ON e.id = f.id
+               WHERE hunks_fts MATCH ?{cfilter} ORDER BY e.created_at DESC LIMIT ?""",
             (match, *fparams, limit)).fetchall()
         out["results"] = [dict(r) for r in rows]
     elif year:
         rows = conn.execute(
             f"SELECT e.*, substr(COALESCE(NULLIF(e.transcript, ''), e.notes, ''), 1, 220) AS snip,"
-            f" {tags_sub} FROM entries e "
+            f" {tags_sub} FROM hunks e "
             f"WHERE substr(e.created_at, 1, 4) = ?{cfilter} ORDER BY e.created_at DESC",
             (year, *fparams)).fetchall()
         out["results"] = [dict(r) for r in rows]
@@ -187,11 +187,11 @@ def query_db(q: str, year: str = "", cls: str = "", marked: bool = False,
         filt = f" FILTER (WHERE {' AND '.join(conds)})" if conds else ""
         counts = conn.execute(
             f"SELECT substr(e.created_at, 1, 4), COUNT(*){filt} "
-            f"FROM entries e GROUP BY 1 ORDER BY 1 DESC", fparams)
+            f"FROM hunks e GROUP BY 1 ORDER BY 1 DESC", fparams)
         out["years"] = [{"year": y, "count": c} for y, c in counts]
         out["classes"] = [c for c in roster if c in present] + sorted(present - set(roster))
     total = conn.execute(
-        "SELECT COUNT(*), MIN(created_at), MAX(created_at) FROM entries e "
+        "SELECT COUNT(*), MIN(created_at), MAX(created_at) FROM hunks e "
         f"WHERE {conds[0]}").fetchone()   # conds[0] is always the hidden pin
     conn.close()
     out.update(total=total[0], oldest=total[1], newest=total[2])
@@ -246,15 +246,15 @@ class Handler(BaseHTTPRequestHandler):
                                        qs.get("mark", [""])[0] == "1",
                                        qs.get("hidden", [""])[0] == "1")).encode()
             self._send(200, "application/json", body)
-        elif url.path in ("/api/entry", "/api/random"):
+        elif url.path in ("/api/hunk", "/api/random"):
             qs = urllib.parse.parse_qs(url.query)
-            entry = load_entry(qs.get("id", [""])[0] if url.path == "/api/entry" else "",
+            hunk = load_hunk(qs.get("id", [""])[0] if url.path == "/api/hunk" else "",
                                qs.get("cls", [""])[0], qs.get("mark", [""])[0] == "1",
                                qs.get("hidden", [""])[0] == "1")
-            if entry is None:
-                self._send(404, "text/plain", b"no such entry")
+            if hunk is None:
+                self._send(404, "text/plain", b"no such hunk")
                 return
-            self._send(200, "application/json", json.dumps(entry).encode())
+            self._send(200, "application/json", json.dumps(hunk).encode())
         elif url.path == "/api/classes":
             self._send(200, "application/json", json.dumps(load_classes()).encode())
         elif url.path.startswith("/audio/"):
@@ -304,17 +304,17 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, "application/json", b'{"revealed": true}')
 
     def _flag(self, path: str):
-        """Everything the page may write to an entry. Mark says there is
+        """Everything the page may write to an hunk. Mark says there is
         something here, hidden says keep it out of my view, notes are the
         reader's own writing. None of the three touches what the pipeline
         produced — not the transcript, not the class, not the tags."""
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
-            entry_id = str(body.get("id", ""))
+            hunk_id = str(body.get("id", ""))
         except (json.JSONDecodeError, ValueError):
-            entry_id, body = "", {}
-        if not ENTRY_ID_RE.match(entry_id):
-            self._send(400, "text/plain", b"bad entry id")
+            hunk_id, body = "", {}
+        if not HUNK_ID_RE.match(hunk_id):
+            self._send(400, "text/plain", b"bad hunk id")
             return
         if path == "/api/notes":
             text = body.get("text", "")
@@ -322,16 +322,16 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(400, "text/plain",
                            f"notes must be text under {MAX_NOTES} chars".encode())
                 return
-            entry = set_notes(entry_id, text)
+            hunk = set_notes(hunk_id, text)
         elif path == "/api/hide":
-            entry = set_flag(entry_id, "hidden", 1 if body.get("hide") else 0)
+            hunk = set_flag(hunk_id, "hidden", 1 if body.get("hide") else 0)
         else:
-            entry = set_flag(entry_id, "status",
+            hunk = set_flag(hunk_id, "status",
                              "promoted" if body.get("mark") else "raw")
-        if entry is None:
-            self._send(404, "text/plain", b"no such entry")
+        if hunk is None:
+            self._send(404, "text/plain", b"no such hunk")
             return
-        self._send(200, "application/json", json.dumps(entry).encode())
+        self._send(200, "application/json", json.dumps(hunk).encode())
 
     def do_POST(self):
         path = urllib.parse.urlparse(self.path).path
@@ -371,7 +371,7 @@ class Handler(BaseHTTPRequestHandler):
         if name not in classes:
             self._send(404, "text/plain", b"no such class")
             return
-        del classes[name]  # falls forward only — filed entries keep their label
+        del classes[name]  # falls forward only — filed hunks keep their label
         save_classes(classes)
         self._send(200, "application/json", json.dumps(classes).encode())
 

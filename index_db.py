@@ -29,7 +29,7 @@ DEFAULT_CLASSES = {
 }
 
 SCHEMA = """
-CREATE TABLE entries (
+CREATE TABLE hunks (
     id          TEXT PRIMARY KEY,
     created_at  TEXT NOT NULL,
     source      TEXT NOT NULL,
@@ -47,12 +47,12 @@ CREATE TABLE entries (
     indexed_at  TEXT
 );
 CREATE TABLE tags (
-    entry_id    TEXT NOT NULL REFERENCES entries(id),
+    hunk_id    TEXT NOT NULL REFERENCES hunks(id),
     tag         TEXT NOT NULL,
-    PRIMARY KEY (entry_id, tag)
+    PRIMARY KEY (hunk_id, tag)
 );
 -- notes goes last: transcript stays column 1 for anything addressing it by index
-CREATE VIRTUAL TABLE entries_fts USING fts5(
+CREATE VIRTUAL TABLE hunks_fts USING fts5(
     id UNINDEXED, transcript, title, notes, tokenize='porter'
 );
 CREATE TABLE classes (
@@ -83,7 +83,7 @@ def rebuild() -> int:
         dp = COMPOST / "notes" / stem.with_suffix(".md")
         notes = dp.read_text().strip() if dp.exists() else ""
         conn.execute(
-            "INSERT OR REPLACE INTO entries (id, created_at, source, title, class, transcript,"
+            "INSERT OR REPLACE INTO hunks (id, created_at, source, title, class, transcript,"
             " notes, audio_path, lat, lon, place, duration, status, hidden, indexed_at)"
             " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (m["id"], m["created_at"], m.get("source", "vm"), m.get("title"),
@@ -91,7 +91,7 @@ def rebuild() -> int:
              m.get("lon"), m.get("place"), m.get("duration"), m.get("status", "raw"),
              int(m.get("hidden") or 0), now),
         )
-        conn.execute("INSERT INTO entries_fts (id, transcript, title, notes) VALUES (?,?,?,?)",
+        conn.execute("INSERT INTO hunks_fts (id, transcript, title, notes) VALUES (?,?,?,?)",
                      (m["id"], transcript, m.get("title") or "", notes))
         for t in m.get("tags", []):
             conn.execute("INSERT OR IGNORE INTO tags VALUES (?,?)", (m["id"], t))
@@ -111,6 +111,6 @@ def rebuild() -> int:
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "rebuild":
-        print(f"indexed {rebuild()} entries -> {DB}")
+        print(f"indexed {rebuild()} hunks -> {DB}")
     else:
         sys.exit(__doc__.strip())

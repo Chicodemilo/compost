@@ -103,24 +103,24 @@ body {
 .del.back:hover { color: #8f9f6b; }
 .active-box .mark { margin-left: 0; padding-left: 0; }
 #results { padding: 8px 24px 60px; }
-.entry { padding: 14px 0; }
+.hunk { padding: 14px 0; }
 /* the row's controls track the text column instead of the window edge —
-   on a wide screen an auto margin strands them yards from the entry */
-.entry .meta-row { display: flex; gap: 14px; align-items: baseline;
+   on a wide screen an auto margin strands them yards from the hunk */
+.hunk .meta-row { display: flex; gap: 14px; align-items: baseline;
                    margin-bottom: 6px; max-width: 900px; }
-.entry .date, .active-box .date { color: #7a8ab8; font-size: 11px; letter-spacing: 1px; }
-.entry .cls, .active-box .cls {
+.hunk .date, .active-box .date { color: #7a8ab8; font-size: 11px; letter-spacing: 1px; }
+.hunk .cls, .active-box .cls {
   font-size: 9px; color: #555; letter-spacing: 2px; text-transform: uppercase;
   border: 1px solid #2a2a2a; border-radius: 2px; padding: 1px 6px;
 }
-.entry .dur, .active-box .dur { font-size: 10px; color: #444; }
-.entry .tag, .active-box .tag {
+.hunk .dur, .active-box .dur { font-size: 10px; color: #444; }
+.hunk .tag, .active-box .tag {
   font-size: 9px; color: #7a8ab8; letter-spacing: 1px;
   border: 1px solid #232a3d; border-radius: 2px; padding: 1px 6px;
 }
-.entry .snip { color: #c8b89a; line-height: 1.6; max-width: 900px; }
-.entry .snip mark { background: none; color: #f5e8d0; font-weight: 700; }
-.entry audio, .active-box audio { margin-top: 8px; height: 28px; width: 100%; max-width: 420px; display: block; filter: invert(0.85) sepia(0.3); }
+.hunk .snip { color: #c8b89a; line-height: 1.6; max-width: 900px; }
+.hunk .snip mark { background: none; color: #f5e8d0; font-weight: 700; }
+.hunk audio, .active-box audio { margin-top: 8px; height: 28px; width: 100%; max-width: 420px; display: block; filter: invert(0.85) sepia(0.3); }
 .empty { color: #555; padding: 40px 0; letter-spacing: 2px; text-transform: uppercase; font-size: 11px; }
 .year-header {
   cursor: pointer; user-select: none;
@@ -220,10 +220,10 @@ textarea.notes {
 }
 textarea.notes:focus { border-color: #c8b89a; }
 textarea.notes::placeholder { color: #3a3a3a; }
-.entry .title, .active-box .title { color: #e8d5b5; font-size: 12px; letter-spacing: 1px; }
-.entry .title.none, .active-box .title.none { color: #3a3a3a; font-style: italic; letter-spacing: 0; }
-.entry .date.pick { cursor: pointer; }
-.entry .date.pick:hover { color: #e8d5b5; border-bottom: 1px dotted #7a8ab8; }
+.hunk .title, .active-box .title { color: #e8d5b5; font-size: 12px; letter-spacing: 1px; }
+.hunk .title.none, .active-box .title.none { color: #3a3a3a; font-style: italic; letter-spacing: 0; }
+.hunk .date.pick { cursor: pointer; }
+.hunk .date.pick:hover { color: #e8d5b5; border-bottom: 1px dotted #7a8ab8; }
 </style>
 </head>
 <body>
@@ -234,7 +234,7 @@ textarea.notes::placeholder { color: #3a3a3a; }
   <span class="classes-toggle" onclick="toggleClasses()">classes</span>
 </div>
 <div id="classes-panel" class="horz_sep_minor">
-  <div class="note">edits fall forward — the clerk files future memos by these; already-filed entries keep their label</div>
+  <div class="note">edits fall forward — the clerk files future memos by these; already-filed hunks keep their label</div>
   <div id="class-rows"></div>
 </div>
 <div id="active" class="horz_sep_major"></div>
@@ -244,11 +244,11 @@ textarea.notes::placeholder { color: #3a3a3a; }
     <div id="class-chips"></div>
     <div id="mark-filter">
       <span class="chip mark-chip" id="mark-chip" onclick="toggleMarkFilter()"
-            title="only entries flagged as having something in them">something here</span>
+            title="only hunks flagged as having something in them">something here</span>
     </div>
     <div id="hidden-filter">
       <span class="chip hidden-chip" id="hidden-chip" onclick="toggleHiddenFilter()"
-            title="the entries you put out of view — nothing was deleted">hidden</span>
+            title="the hunks you put out of view — nothing was deleted">hidden</span>
     </div>
   </div>
 </div>
@@ -268,9 +268,9 @@ function fmtDur(s) {
   return m ? `${m}m${String(sec).padStart(2,'0')}s` : `${sec}s`;
 }
 
-function entryHTML(e) {
+function hunkHTML(e) {
   return `
-    <div class="entry horz_sep_minor">
+    <div class="hunk horz_sep_minor">
       <div class="meta-row">
         <span class="date pick" onclick="setActive('${e.id}')"
               title="make this the active post">${fmtDate(e.created_at)}</span>
@@ -288,11 +288,11 @@ function entryHTML(e) {
 let statsData = null;
 function setStats(data) {
   statsData = data;
-  stats.textContent = `${data.total} entries · ${(data.oldest||'').slice(0,4)}–${(data.newest||'').slice(0,4)}`;
+  stats.textContent = `${data.total} hunks · ${(data.oldest||'').slice(0,4)}–${(data.newest||'').slice(0,4)}`;
 }
 
 const expanded = new Set();       // survives search-and-clear
-const yearCache = new Map();      // "year|filter" -> entries, fetched once
+const yearCache = new Map();      // "year|filter" -> hunks, fetched once
 const activeCls = new Set();      // class filter; empty = no filter
 let markOn = false;               // the other axis, filtered on its own
 let hiddenOn = false;             // showing the hidden pile instead of the live one
@@ -335,7 +335,7 @@ function applyMark(id, on) {
   const st = on ? 'promoted' : 'raw';
   yearCache.forEach(list => list.forEach(e => { if (e.id === id) e.status = st; }));
   document.querySelectorAll(`[data-status-for="${id}"]`).forEach(el => el.textContent = st);
-  if (activeEntry && activeEntry.id === id) activeEntry.status = st;
+  if (activeHunk && activeHunk.id === id) activeHunk.status = st;
 }
 
 const DEL_TITLE = 'put out of view — nothing is deleted, find it again under "hidden"';
@@ -344,29 +344,29 @@ const BACK_TITLE = 'put this back in the pile';
 function delHTML(e) {
   const hid = !!e.hidden;
   return `<span class="del${hid ? ' back' : ''}" data-del="${e.id}"
-                onclick="hideEntry('${e.id}', ${!hid}, event)"
+                onclick="hideHunk('${e.id}', ${!hid}, event)"
                 title="${hid ? BACK_TITLE : DEL_TITLE}">${hid ? '[+]' : '[x]'}</span>`;
 }
 
 // one click, both directions. this used to ask twice, from when [x] meant
 // delete — but hiding moves nothing and the hidden chip puts it back in a
 // tap, so a confirm step was just ceremony in front of a reversible act.
-async function hideEntry(id, hide, ev) {
+async function hideHunk(id, hide, ev) {
   ev.stopPropagation();
   const r = await fetch('/api/hide', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({id, hide})
   });
   if (!r.ok) { alert(await r.text()); return; }
-  dropEntry(id);   // it left whichever view you are in — the live one or the hidden one
+  dropHunk(id);   // it left whichever view you are in — the live one or the hidden one
 }
 
-function dropEntry(id) {
+function dropHunk(id) {
   yearCache.forEach((list, key) =>
     yearCache.set(key, list.filter(e => e.id !== id)));
-  if (activeEntry && activeEntry.id === id) renderActive(null);
+  if (activeHunk && activeHunk.id === id) renderActive(null);
   document.querySelectorAll(`[data-del="${id}"]`).forEach(d => {
-    const row = d.closest('.entry');
+    const row = d.closest('.hunk');
     if (!row) return;
     bumpCount(row.closest('.year-body'), -1);   // the year it was filed under
     row.remove();
@@ -374,7 +374,7 @@ function dropEntry(id) {
   if (statsData) { statsData.total--; setStats(statsData); }
 }
 
-// a deleted entry stops being counted immediately — waiting for the next
+// a deleted hunk stops being counted immediately — waiting for the next
 // fetch leaves the page insisting on a number it can no longer show
 function bumpCount(yearBody, by) {
   const el = yearBody && yearBody.previousElementSibling.querySelector('.count');
@@ -415,7 +415,7 @@ async function search() {
   if (!q.value.trim()) return;    // box was cleared while fetching
   setStats(data);
   results.innerHTML = data.results.length
-    ? data.results.map(entryHTML).join('')
+    ? data.results.map(hunkHTML).join('')
     : '<div class="empty">nothing in the pile matches</div>';
 }
 
@@ -446,7 +446,7 @@ async function renderYear(year) {
     yearCache.set(key, (await r.json()).results);
   }
   if (!expanded.has(year)) return;  // collapsed again while fetching
-  body.innerHTML = yearCache.get(key).map(entryHTML).join('');
+  body.innerHTML = yearCache.get(key).map(hunkHTML).join('');
 }
 
 function toggleYear(year) {
@@ -472,7 +472,7 @@ function toggleClasses() {
 
 async function loadClasses() {
   const classes = await (await fetch('/api/classes')).json();
-  classRows.innerHTML = Object.entries(classes).map(([name, writeup]) => `
+  classRows.innerHTML = Object.hunks(classes).map(([name, writeup]) => `
     <div class="class-row">
       <span class="cname">${name}</span>
       <textarea id="cw-${name}">${writeup.replace(/</g, '&lt;')}</textarea>
@@ -515,7 +515,7 @@ document.addEventListener('play', ev => {
 
 // ---- active post: survives searches and reloads until cleared ----
 const activeWrap = document.getElementById('active');
-let activeEntry = null;
+let activeHunk = null;
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g,
   c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -540,7 +540,7 @@ function deetRows(e) {
 
 function renderActive(e) {
   flushNotes();        // the box is about to be replaced — don't let a pending save die with it
-  activeEntry = e;
+  activeHunk = e;
   notesSaved = e ? (e.notes || '') : null;
   if (!e) {
     activeWrap.classList.remove('open');
@@ -614,7 +614,7 @@ function showCount(n) {
 function flushNotes() {
   clearTimeout(notesTimer);
   const box = document.getElementById('notes-box');
-  if (box && activeEntry) saveNotes(activeEntry.id, box.value);
+  if (box && activeHunk) saveNotes(activeHunk.id, box.value);
 }
 
 async function saveNotes(id, text) {
@@ -628,7 +628,7 @@ async function saveNotes(id, text) {
     if (!r.ok) throw new Error(await r.text());
     const e = await r.json();
     notesSaved = text;
-    if (activeEntry && activeEntry.id === id) activeEntry.notes = e.notes;
+    if (activeHunk && activeHunk.id === id) activeHunk.notes = e.notes;
     notesState('saved', 'saved ' + new Date().toTimeString().slice(0, 5));
   } catch (err) {
     notesState('failed', 'not saved');
@@ -636,7 +636,7 @@ async function saveNotes(id, text) {
 }
 
 async function setActive(id) {
-  const r = await fetch('/api/entry?id=' + encodeURIComponent(id));
+  const r = await fetch('/api/hunk?id=' + encodeURIComponent(id));
   if (!r.ok) return;
   renderActive(await r.json());
 }
@@ -649,10 +649,10 @@ async function randomPost() {
 }
 
 async function revealActive() {
-  if (!activeEntry) return;
+  if (!activeHunk) return;
   const r = await fetch('/api/reveal', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({path: activeEntry.audio_path})
+    body: JSON.stringify({path: activeHunk.audio_path})
   });
   if (!r.ok) alert(await r.text());
 }
@@ -661,9 +661,9 @@ async function revealActive() {
 window.addEventListener('pagehide', () => {
   clearTimeout(notesTimer);
   const box = document.getElementById('notes-box');
-  if (!box || !activeEntry || box.value === notesSaved) return;
+  if (!box || !activeHunk || box.value === notesSaved) return;
   navigator.sendBeacon('/api/notes', new Blob(
-    [JSON.stringify({id: activeEntry.id, text: box.value})], {type: 'application/json'}));
+    [JSON.stringify({id: activeHunk.id, text: box.value})], {type: 'application/json'}));
 });
 
 q.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(search, 200); });

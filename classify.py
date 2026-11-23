@@ -6,9 +6,9 @@ The LLM backend is headless Claude Code (`claude -p`) behind one function —
 swap _llm() to change providers.
 
 Usage:
-    classify.py backfill        classify+tag every entry not yet classified
-    classify.py backfill N      ... at most N entries (for sampling)
-    classify.py one <id>        classify+tag a single entry by id
+    classify.py backfill        classify+tag every hunk not yet classified
+    classify.py backfill N      ... at most N hunks (for sampling)
+    classify.py one <id>        classify+tag a single hunk by id
 """
 
 import json
@@ -31,7 +31,7 @@ MAX_CHARS = 6000         # an hour-long ramble classifies fine from its first st
 def load_classes() -> dict[str, str]:
     """Class roster is db-native (the one deliberate exception to files-are-truth)
     and CRUD'd from the search page. Edits fall forward only: they shape future
-    filing, never already-filed entries."""
+    filing, never already-filed hunks."""
     from index_db import DEFAULT_CLASSES
     try:
         conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
@@ -101,41 +101,41 @@ def tag(transcript: str) -> list[str]:
     return _llm(transcript)["tags"]
 
 
-def _meta_path(entry_id: str) -> Path:
-    return META / entry_id[:4] / entry_id[4:6] / f"{entry_id}.json"
+def _meta_path(hunk_id: str) -> Path:
+    return META / hunk_id[:4] / hunk_id[4:6] / f"{hunk_id}.json"
 
 
-def route(entry_id: str, cls: str) -> None:
+def route(hunk_id: str, cls: str) -> None:
     """Write class to meta + db. Meta is truth; the db update just keeps search fresh."""
-    mp = _meta_path(entry_id)
+    mp = _meta_path(hunk_id)
     m = json.loads(mp.read_text())
     m["class"] = cls
     mp.write_text(json.dumps(m, indent=2))
     try:
         conn = sqlite3.connect(DB)
-        conn.execute("UPDATE entries SET class = ? WHERE id = ?", (cls, entry_id))
+        conn.execute("UPDATE hunks SET class = ? WHERE id = ?", (cls, hunk_id))
         conn.commit()
         conn.close()
     except sqlite3.Error:
         pass  # db is disposable; next index rebuild picks it up from meta
 
 
-def apply(entry_id: str) -> dict:
-    """Classify+tag one entry: meta gets class, tags, classified_at; db follows."""
-    tp = TRANSCRIPTS / entry_id[:4] / entry_id[4:6] / f"{entry_id}.txt"
+def apply(hunk_id: str) -> dict:
+    """Classify+tag one hunk: meta gets class, tags, classified_at; db follows."""
+    tp = TRANSCRIPTS / hunk_id[:4] / hunk_id[4:6] / f"{hunk_id}.txt"
     transcript = tp.read_text().strip() if tp.exists() else ""
     result = _llm(transcript) if transcript else {"class": "compost", "tags": []}
-    route(entry_id, result["class"])
-    mp = _meta_path(entry_id)
+    route(hunk_id, result["class"])
+    mp = _meta_path(hunk_id)
     m = json.loads(mp.read_text())
     m["tags"] = result["tags"]
     m["classified_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     mp.write_text(json.dumps(m, indent=2))
     try:
         conn = sqlite3.connect(DB)
-        conn.execute("DELETE FROM tags WHERE entry_id = ?", (entry_id,))
+        conn.execute("DELETE FROM tags WHERE hunk_id = ?", (hunk_id,))
         conn.executemany("INSERT OR IGNORE INTO tags VALUES (?,?)",
-                         [(entry_id, t) for t in result["tags"]])
+                         [(hunk_id, t) for t in result["tags"]])
         conn.commit()
         conn.close()
     except sqlite3.Error:
@@ -154,7 +154,7 @@ def backfill(limit: int | None = None) -> None:
             todo.append(m["id"])
     if limit:
         todo = todo[:limit]
-    print(f"{len(todo)} entries to classify")
+    print(f"{len(todo)} hunks to classify")
     for i, eid in enumerate(todo, 1):
         r = apply(eid)
         print(f"[{i}/{len(todo)}] {eid} -> {r['class']} {r['tags']}", flush=True)
