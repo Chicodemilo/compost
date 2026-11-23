@@ -277,10 +277,15 @@ textarea.notes::placeholder { color: #3a3a3a; }
    writing against a tape you can no longer reach */
 .ribbon { display: none; }
 #active.big .ribbon {
-  display: flex; align-items: center; gap: 14px;
+  display: flex; align-items: center; gap: 10px;
   position: sticky; bottom: 0; margin-top: 10px;
   padding: 10px 2px 4px; background-color: #0d0d0c;
 }
+.ribbon .tool-label {
+  font-size: 10px; color: #555; letter-spacing: 2px; text-transform: uppercase;
+  user-select: none; white-space: nowrap;
+}
+.ribbon .rb-sep { color: #333; user-select: none; margin: 0 6px; }
 .ribbon .tool {
   font-size: 11px; color: #7a8ab8; cursor: pointer; user-select: none;
   letter-spacing: 0; white-space: nowrap;
@@ -704,10 +709,12 @@ function renderActive(e) {
                 placeholder="work it out here…">${esc(e.notes || '')}</textarea>
       <div id="notes-lanes" hidden></div>
       <div class="ribbon horz_sep_minor on_top">
+        <span class="tool-label">chord rows</span>
         <span class="tool" id="rb-chord-rows" onclick="toggleChordRows()"
-              title="open a chord row above every line">[chord rows]</span>
+              title="open a chord row above every return">[show/hide]</span>
         <span class="tool danger" id="rb-clear" onclick="clearChordRows()"
-              title="take out every chord row — the words are left alone">[clear chords]</span>
+              title="take out every chord row — the words are left alone">[clear]</span>
+        <span class="rb-sep">|</span>
       </div>
     </div>`;
   rbRateIdx = 0;                       // a new hunk starts at full speed
@@ -827,16 +834,16 @@ function clearChordRows() {
   if (!btn || !box) return;
   if (!btn.classList.contains('armed')) {
     btn.classList.add('armed');
-    btn.textContent = '[clear chords — sure?]';
+    btn.textContent = '[sure?]';
     clearArmed = setTimeout(() => {
       btn.classList.remove('armed');
-      btn.textContent = '[clear chords]';
+      btn.textContent = '[clear]';
     }, 4000);
     return;
   }
   clearTimeout(clearArmed);
   btn.classList.remove('armed');
-  btn.textContent = '[clear chords]';
+  btn.textContent = '[clear]';
   box.value = stripChordRows(box.value);
   showCount(box.value.length);
   clearTimeout(notesTimer);

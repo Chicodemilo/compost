@@ -264,7 +264,10 @@ Single HTML file. Served locally. Not a webapp.
   The grammar covers what people actually write there: chords with extensions and slash basses,
   bar lines, `%`, `N.C.`, `x2`, and words like riff, solo, intro, vamp. Lowercase is fixed up,
   so `am` becomes `Am`.
-- `[clear chords]` takes out every chord row and leaves the words alone. Two taps, because a
+- The ribbon is organised in **named groups**: a label in dim capitals, its controls, then a
+  `|`. The first group is `chord rows  [show/hide]  [clear]  |`. The label carries the noun so
+  the buttons can be verbs, and the bar marks where the next group of tools will start.
+- `[clear]` takes out every chord row and leaves the words alone. Two taps, because a
   worked-out set of chords is real work, but the lyrics are never at risk.
 - The lanes on screen are **held, not re-derived.** Re-parsing the text on every keystroke meant
   a single bad line renumbered every lane, and the chords jumped to the wrong words.
