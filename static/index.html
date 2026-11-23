@@ -296,11 +296,12 @@ textarea.notes::placeholder { color: #3a3a3a; }
 .ribbon .rb-fill { flex: 1; overflow: hidden; }   /* underscores run to the end */
 .ribbon .rb-tools {
   display: flex; align-items: center; gap: 10px;
-  padding: 11px 0 0 4px;          /* room under the folder edge before the tools */
+  padding: 11px 0 0 0;            /* flush left: the opening bar is the folder's left edge */
 }
 .ribbon .rb-hint { font-size: 9px; color: #3a3a3a; letter-spacing: 1px; }
 .ribbon .rb-hint.nag { color: #b8753a; }
 .ribbon .rb-sep { color: #333; user-select: none; margin: 0 6px; }
+.ribbon .rb-tools > .rb-sep:first-child { margin-left: 0; }
 .ribbon .tool {
   font-size: 11px; color: #7a8ab8; cursor: pointer; user-select: none;
   letter-spacing: 0; white-space: nowrap;
