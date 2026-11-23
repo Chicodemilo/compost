@@ -13,7 +13,7 @@ GET /api/random          one entry at random (honors ?cls= like search does)
 POST /api/reveal         {"path": audio_path} — reveal that file in Finder
 POST /api/mark           {"id": ..., "mark": true|false} — flag "something here"
 POST /api/hide           {"id": ..., "hide": true|false} — out of view, or back
-POST /api/draft          {"id": ..., "text": ...} — the reader's own writing
+POST /api/notes          {"id": ..., "text": ...} — the reader's own writing
 GET /api/classes         the class roster (name -> writeup)
 POST /api/classes        create or update a class {"name": ..., "writeup": ...}
 DELETE /api/classes/<name>  retire a class — falls forward only: already-filed
@@ -30,7 +30,7 @@ from pathlib import Path
 
 COMPOST = Path.home() / "compost"
 META = COMPOST / "meta"
-DRAFTS = COMPOST / "drafts"
+NOTES = COMPOST / "notes"
 DB = COMPOST / "compost.db"
 STATIC = Path(__file__).parent / "static"
 PORT = 8771
@@ -71,14 +71,16 @@ def row_filter(selected: list, marked: bool, hidden: bool = False) -> tuple[list
 
 
 FLAGS = {"status", "hidden"}   # the only flag columns the page may write
-MAX_DRAFT = 200_000            # a draft is a note, not an upload
+# A knowable ceiling the page can show a count against — keep it in step with
+# MAX_NOTES in index.html. Generous for notes on a memo; raise it if it bites.
+MAX_NOTES = 10_000
 
 
-def set_draft(entry_id: str, text: str) -> dict | None:
+def set_notes(entry_id: str, text: str) -> dict | None:
     """Save the reader's own writing for one entry.
 
-    It lives in drafts/<id>.md, a sibling of the transcript, and never touches
-    it. The transcript is what the machine heard; the draft is what you made
+    It lives in notes/<id>.md, a sibling of the transcript, and never touches
+    it. The transcript is what the machine heard; the notes are what you made
     of it, and keeping them apart is what lets you re-transcribe later without
     destroying your thinking — and what lets you still tell what you actually
     said from what you decided afterwards you meant.
@@ -86,7 +88,7 @@ def set_draft(entry_id: str, text: str) -> dict | None:
     if not (META / entry_id[:4] / entry_id[4:6] / f"{entry_id}.json").is_file():
         return None
     text = text.strip()
-    dp = DRAFTS / entry_id[:4] / entry_id[4:6] / f"{entry_id}.md"
+    dp = NOTES / entry_id[:4] / entry_id[4:6] / f"{entry_id}.md"
     if text:
         dp.parent.mkdir(parents=True, exist_ok=True)
         dp.write_text(text)
@@ -94,11 +96,11 @@ def set_draft(entry_id: str, text: str) -> dict | None:
         dp.unlink()   # cleared by hand: don't leave an empty file behind
     try:
         conn = sqlite3.connect(DB)
-        conn.execute("UPDATE entries SET draft = ? WHERE id = ?", (text, entry_id))
+        conn.execute("UPDATE entries SET notes = ? WHERE id = ?", (text, entry_id))
         row = conn.execute(
             "SELECT transcript, title FROM entries WHERE id = ?", (entry_id,)).fetchone()
         conn.execute("DELETE FROM entries_fts WHERE id = ?", (entry_id,))
-        conn.execute("INSERT INTO entries_fts (id, transcript, title, draft) VALUES (?,?,?,?)",
+        conn.execute("INSERT INTO entries_fts (id, transcript, title, notes) VALUES (?,?,?,?)",
                      (entry_id, row[0] or "", row[1] or "", text))
         conn.commit()
         conn.close()
@@ -175,7 +177,7 @@ def query_db(q: str, year: str = "", cls: str = "", marked: bool = False,
         out["results"] = [dict(r) for r in rows]
     elif year:
         rows = conn.execute(
-            f"SELECT e.*, substr(COALESCE(NULLIF(e.transcript, ''), e.draft, ''), 1, 220) AS snip,"
+            f"SELECT e.*, substr(COALESCE(NULLIF(e.transcript, ''), e.notes, ''), 1, 220) AS snip,"
             f" {tags_sub} FROM entries e "
             f"WHERE substr(e.created_at, 1, 4) = ?{cfilter} ORDER BY e.created_at DESC",
             (year, *fparams)).fetchall()
@@ -303,7 +305,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _flag(self, path: str):
         """Everything the page may write to an entry. Mark says there is
-        something here, hidden says keep it out of my view, draft is the
+        something here, hidden says keep it out of my view, notes are the
         reader's own writing. None of the three touches what the pipeline
         produced — not the transcript, not the class, not the tags."""
         try:
@@ -314,12 +316,13 @@ class Handler(BaseHTTPRequestHandler):
         if not ENTRY_ID_RE.match(entry_id):
             self._send(400, "text/plain", b"bad entry id")
             return
-        if path == "/api/draft":
+        if path == "/api/notes":
             text = body.get("text", "")
-            if not isinstance(text, str) or len(text) > MAX_DRAFT:
-                self._send(400, "text/plain", b"draft must be text under 200k")
+            if not isinstance(text, str) or len(text) > MAX_NOTES:
+                self._send(400, "text/plain",
+                           f"notes must be text under {MAX_NOTES} chars".encode())
                 return
-            entry = set_draft(entry_id, text)
+            entry = set_notes(entry_id, text)
         elif path == "/api/hide":
             entry = set_flag(entry_id, "hidden", 1 if body.get("hide") else 0)
         else:
@@ -335,7 +338,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/reveal":
             self._reveal()
             return
-        if path in ("/api/mark", "/api/hide", "/api/draft"):
+        if path in ("/api/mark", "/api/hide", "/api/notes"):
             self._flag(path)
             return
         if path != "/api/classes":

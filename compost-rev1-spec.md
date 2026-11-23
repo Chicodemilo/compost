@@ -31,8 +31,8 @@ These are load-bearing. Do not optimize them away.
 3. **Files are the source of truth. The database is an index.** Deleting the DB and rebuilding it
    from the folder must always be a valid recovery path.
 4. **The AI sorts. It does not have opinions.** No rewriting, summarizing, or "improving"
-   content. The reader may write as much as they like — in the draft (§9), which is a separate
-   field. Machine output and human output never share a box.
+   content. The reader may write as much as they like — in their notes (§9), which are a
+   separate field. Machine output and human output never share a box.
 5. **Uncertainty routes to `compost`.** An honest unsorted pile beats a confident wrong folder.
 6. **Nothing is ever deleted.** No `dead` state, no trash, no expiry, no grade that condemns
    an entry. Material either gets used or sits. A person may put an entry **out of view** (§9),
@@ -96,7 +96,7 @@ iPhone (press-and-hold → Voice Memos)
 ├── transcripts/        # one .txt per entry, same stem as audio — machine output
 │   └── 2026/09/
 │       └── 20260902-143312-a3f9.txt
-├── drafts/             # one .md per entry — the reader's own writing (§9)
+├── notes/              # one .md per entry — the reader's own writing (§9)
 │   └── 2026/09/        #   absent until you write something
 │       └── 20260902-143312-a3f9.md
 ├── meta/               # one .json per entry — tags, class, location, source
@@ -123,7 +123,7 @@ CREATE TABLE entries (
     source      TEXT NOT NULL,        -- 'vm' | 'note'  (note = rev 2)
     class       TEXT NOT NULL,        -- see §7
     transcript  TEXT,                 -- may be empty or garbled — that is OK
-    draft       TEXT,                 -- the reader's writing, never the machine's, §9
+    notes       TEXT,                 -- the reader's writing, never the machine's, §9
     audio_path  TEXT,                 -- relative to ~/compost/
     lat         REAL,                 -- nullable
     lon         REAL,                 -- nullable
@@ -224,11 +224,14 @@ Single HTML file. Served locally. Not a webapp.
   is the only negative signal, and it costs nothing to leave.
 - Marking writes `status` to the entry's meta JSON first, db second. It rides a `rebuild` with
   no special-casing — unlike the class roster, the mark needs no exception to files-are-truth.
-- **The draft** — a text box on the active post where you work an idea out. It saves itself:
+- **Notes** — a text box on the active post where you work an idea out. It saves itself:
   debounced while typing, flushed on blur and on anything that tears the box down. A note you
-  have to remember to save is a note you lose.
-- The draft is a **sibling of the transcript, never a replacement.** The transcript is what the
-  machine heard; the draft is what you made of it. Keeping them apart is what lets you
+  have to remember to save is a note you lose. The box is a **fixed height that scrolls, never
+  grows**, so filling it can't push the transcript and the audio off the screen. A char count
+  sits next to the label in grey against `MAX_NOTES` — a sanity bound on the payload, not a
+  budget for your writing; raise it the day it ever bites.
+- Notes are a **sibling of the transcript, never a replacement.** The transcript is what the
+  machine heard; the notes are what you made of it. Keeping them apart is what lets you
   re-transcribe with a better model later without destroying your thinking, and what lets you
   always tell what you actually said from what you decided afterwards you meant. **The page
   never edits the transcript.** Both are indexed, so search covers your writing too and the
@@ -237,7 +240,7 @@ Single HTML file. Served locally. Not a webapp.
   history — it is free text, so you add, revise and delete in it like any other text box. An
   earlier build grew a line-adder with `↑ top` / `↓ end` buttons on the theory that additive
   edits would remove the need for versioning; they do not, because the box stays editable
-  anyway, and the controls were clutter wrapped around a plain affordance. Drafts are plain
+  anyway, and the controls were clutter wrapped around a plain affordance. Notes are plain
   files, so `git init ~/compost` with `audio/` ignored buys real history if it is ever wanted.
 - **Hidden** — `[x]` beside the mark, in dark orange: the one control that takes something
   away must not wear the mark's green or the tags' blue. **One click, and it goes.** No confirm
@@ -325,6 +328,13 @@ Do not build these. They are real and they come later.
   far as this goes — a flag, not a cycle. There is still **no kill state**: `hidden` says where
   something is shown, never what it is worth. Nothing may ever record a judgment against an
   entry, and nothing may ever delete one.
+- **Growing a note into the finished thing** — notes as a writing surface rather than an
+  annotation, so a song fragment in the pile becomes the song. Compost and seed in one place,
+  then grow it. The field already holds prose and already searches, so the groundwork is laid;
+  what it would need is room to work (a bigger box, a bigger `MAX_NOTES`, probably a word count
+  rather than a char count) and some notion of a note having become its own object rather than
+  a margin on a recording. Deliberately not designed yet — note the direction, build it when
+  the pile has actually been used this way for a while.
 - Any hosted/remote/multi-user version.
 
 ---
