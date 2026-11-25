@@ -341,7 +341,7 @@ textarea.notes::placeholder { color: #3a3a3a; }
    and out rather than appearing, and is clipped by #notes-area so the shadow
    only ever darkens the notes */
 #fifths {
-  position: absolute; top: 0; right: 0; bottom: 0; width: 290px;
+  position: absolute; top: 0; right: 0; bottom: 0; width: 660px; max-width: 72%;
   background: #000; border: 1px solid #2e2e2e; border-radius: 2px;
   box-shadow: 0 0 30px 10px rgba(0, 0, 0, 0.92);
   display: flex; align-items: flex-start; justify-content: center;
@@ -351,9 +351,12 @@ textarea.notes::placeholder { color: #3a3a3a; }
 }
 #fifths.open { transform: translateX(0); pointer-events: auto; }
 #fifths .wheel {
-  font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.5;
-  color: #c8b89a; white-space: pre; margin: 0;
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.45;
+  color: #c8b89a; white-space: pre; margin: 0;          /* majors */
 }
+#fifths .wheel .maj { color: #c8b89a; }                 /* majors */
+#fifths .wheel .min { color: #7a8ab8; }                 /* relative minors */
+#fifths .wheel .pos { color: #8f9f6b; }                 /* scale degrees */
 .lane { margin-bottom: 4px; }
 /* the chord row is a grid, not a text field. a chord sits at a character
    column, which is exactly how a chord sheet has always worked — so dragging
@@ -749,7 +752,7 @@ function renderActive(e) {
         <textarea class="notes" id="notes-box" spellcheck="true" maxlength="${MAX_NOTES}"
                   placeholder="work it out here…">${esc(e.notes || '')}</textarea>
         <div id="notes-lanes" hidden></div>
-        <aside id="fifths"><pre class="wheel">${FIFTHS}</pre></aside>
+        <aside id="fifths"><pre class="wheel">${buildFifths()}</pre></aside>
       </div>
       <div class="ribbon">
         <div class="rb-tabs" id="rb-tabs"></div>
@@ -894,20 +897,59 @@ function clearChordRows() {
 }
 
 // ---- circle of fifths ----
-// C at twelve, a fifth clockwise each step: C G D A E B F# Db Ab Eb Bb F.
-// Drawn as text so it sits on the same grid as everything else here.
-const FIFTHS = `            C
-     F             G
-  Bb                 D
- Eb                   A
-  Ab                 E
-     Db           B
-           F#`;
+// Three rings on a twelve-step clock, C at the top, a fifth clockwise each
+// step: the degree outside, the major, and its relative minor within.
+// Generated rather than drawn, so a radius is a number and not 29 lines of
+// hand-counted spaces.
+const FIFTH_MAJ = ['C','G','D','A','E','B','F#','Db','Ab','Eb','Bb','F'];
+const FIFTH_MIN = ['Am','Em','Bm','F#m','C#m','G#m','D#m','Bbm','Fm','Cm','Gm','Dm'];
+const FIFTH_POS = ['I','V','II','VI','III','VII','#IV','bII','bVI','bIII','bVII','IV'];
+
+// ±5.5 has to land on ±6, or the top and bottom halves stop mirroring and the
+// wheel looks subtly buckled for reasons nobody can point at
+const halfAway = v => (v >= 0 ? Math.floor(v + 0.5) : -Math.floor(-v + 0.5));
+
+function buildFifths() {
+  const W = 84, H = 35, cx = 41, cy = 16;
+  const ch = Array.from({ length: H }, () => Array(W).fill(' '));
+  const kind = Array.from({ length: H }, () => Array(W).fill(''));
+  const ring = (items, RX, RY, k) => items.forEach((t, i) => {
+    const th = i * 30 * Math.PI / 180;
+    const sn = +Math.sin(th).toFixed(6), cs = +Math.cos(th).toFixed(6);
+    const row = cy - halfAway(RY * cs);
+    let col = cx + halfAway(RX * sn) - Math.floor(t.length / 2);
+    col = Math.max(0, Math.min(W - t.length, col));
+    for (let n = 0; n < t.length; n++) { ch[row][col + n] = t[n]; kind[row][col + n] = k; }
+  });
+  ring(FIFTH_POS, 38, 14, 'pos');
+  ring(FIFTH_MAJ, 31, 11, 'maj');
+  ring(FIFTH_MIN, 17, 6, 'min');
+
+  let rows = ch.map((r, y) => {
+    let out = '', run = '', runKind = null;
+    const flush = () => {
+      if (!run) return;
+      out += runKind ? `<span class="${runKind}">${esc(run)}</span>` : esc(run);
+      run = '';
+    };
+    for (let x = 0; x < W; x++) {
+      if (kind[y][x] !== runKind) { flush(); runKind = kind[y][x]; }
+      run += r[x];
+    }
+    flush();
+    return { html: out.replace(/\s+$/, ''), blank: r.join('').trim() === '' };
+  });
+  while (rows.length && rows[0].blank) rows.shift();
+  while (rows.length && rows[rows.length - 1].blank) rows.pop();
+  return rows.map(r => r.html).join('\n');
+}
 
 let fifthsOn = false;
 
 function toggleFifths() {
   fifthsOn = !fifthsOn;
+  // the wheel needs the room; opening it from the small view opens that too
+  if (fifthsOn && !activeWrap.classList.contains('big')) toggleBig(true);
   paintFifths();
   paintRibbon();
 }

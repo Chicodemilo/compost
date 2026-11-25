@@ -277,10 +277,17 @@ Single HTML file. Served locally. Not a webapp.
 - **songs** holds the chord rows: the toggle reads `[show]` or `[hide]` — whichever it will do
   next, never both — plus `[clear]`.
 - **circle of 5ths** (songs tab) takes the right-hand side of the writing area, sliding in and
-  out rather than appearing. It is drawn as text, C at twelve o'clock and a fifth clockwise each
-  step, so it sits on the same character grid as everything else here. The panel is clipped by
-  the writing area, which is what keeps its shadow falling on the notes rather than the page
-  behind. What it *does* is not designed yet — for now it is a wheel to look at.
+  out rather than appearing. Three rings on a twelve-step clock, C at twelve and a fifth
+  clockwise each step: the scale degree outermost, the major, then its relative minor within.
+  Drawn as text, so it sits on the same character grid as the chord rows it will eventually
+  talk to. The panel is clipped by the writing area, which is what keeps its shadow falling on
+  the notes rather than the page behind.
+- The wheel is **generated from radii, not hand-drawn** — adding a ring is a line, not 29 rows
+  of counted spaces. Rounding must go half-away-from-centre: `cos(120°)` and `cos(240°)` both
+  give −0.5, and ordinary rounding puts them on different rows, which buckles the figure in a
+  way that is very hard to see and impossible to unsee.
+- Opening the wheel opens the big view, because it needs the room. What it *does* is not
+  designed yet — for now it is a wheel to look at.
 - **text** holds markdown marks applied to the highlighted words: `[bold]` and `[italic]`.
   Notes are `.md` on disk, so these are the markdown the file already speaks. Applying a mark to
   text that already has it takes it off again, so the buttons toggle rather than piling markers
