@@ -285,9 +285,7 @@ Single HTML file. Served locally. Not a webapp.
 - **Changing key is a rotation, not a lookup table.** The wheel is the maths: step round by
   fifths and every degree keeps its place, so a key change turns both rings by the same step
   while `I / IV / V` stay nailed to the screen. The minors rotate with the majors because a
-  relative minor belongs to its major, not to a position. One caveat: each spot carries a single
-  spelling, so far round the circle you will see the enharmonic partner — `Ab` where the theory
-  wants `G#`. Same pitch, and the alternative is a table of twelve spellings per key.
+  relative minor belongs to its major, not to a position. Note the enharmonic limit in §11.
 - The wheel is **generated from radii, not hand-drawn** — adding a ring is a line, not 29 rows
   of counted spaces. Rounding must go half-away-from-centre: `cos(120°)` and `cos(240°)` both
   give −0.5, and ordinary rounding puts them on different rows, which buckles the figure in a
@@ -422,6 +420,12 @@ more than rarely; the `compost` pile is large and that is correct.
   file is complete on the watcher event.
 - **whisper.cpp on Apple Silicon** — build with Metal support or transcription will be slow
   enough to be annoying.
+- **The wheel spells each position one way, so far-round keys show the enharmonic partner.**
+  Rotating the rings is what makes a key change free of lookup tables, but it also means every
+  spot carries a single name: in a sharp key you will read `Ab` where the theory wants `G#`.
+  The pitch is right and the chord is right; only the letter is the other one. Fixing it
+  properly needs twelve spellings per key — a table, which is the thing the rotation exists to
+  avoid — so it is a known limit rather than a bug to chase.
 - **Never write to the Voice Memos directory.** Read and copy only. Corrupting it means losing
   source material.
 - **Idempotency:** re-running ingest on an already-processed file must be a no-op, not a
