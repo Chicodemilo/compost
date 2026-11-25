@@ -345,6 +345,7 @@ textarea.notes::placeholder { color: #3a3a3a; }
   background: #000; border: 1px solid #2e2e2e; border-radius: 2px;
   box-shadow: 0 0 30px 10px rgba(0, 0, 0, 0.92);
   display: flex; align-items: flex-start; justify-content: center;
+  overflow: hidden;               /* squeeze it and the wheel is cropped, never spilled */
   padding-top: 22px;              /* sits up top; the room below is for what comes next */
   transform: translateX(110%); transition: transform .22s ease-out;
   pointer-events: none;
@@ -352,7 +353,8 @@ textarea.notes::placeholder { color: #3a3a3a; }
 #fifths.open { transform: translateX(0); pointer-events: auto; }
 #fifths .wheel {
   font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.45;
-  color: #c8b89a; white-space: pre; margin: 0;          /* majors */
+  color: #c8b89a; white-space: pre; margin: 0;          /* majors; pre = never wraps */
+  flex: 0 0 auto;                 /* and never squashed into wrapping either */
 }
 #fifths .wheel .maj { color: #c8b89a; }                 /* majors */
 #fifths .wheel .min { color: #7a8ab8; }                 /* relative minors */
