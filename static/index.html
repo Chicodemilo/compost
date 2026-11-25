@@ -1111,16 +1111,24 @@ function fileSays(msg, bad) {
 // the notes are already a monospace chord sheet, so printing is a matter of
 // not getting in the way: same face, same spaces, stanzas kept whole
 function printableDoc(name, when, notes) {
-  const stanzas = notes.replace(/\s+$/, '').split(/\n{2,}/)
-    .map(b => `<div class="stanza">${esc(b)}</div>`).join('');
+  // the same test the lanes use, so what prints bold is exactly what the sheet
+  // treats as a chord row
+  const stanzas = notes.replace(/\s+$/, '').split(/\n{2,}/).map(b => {
+    const lines = b.split('\n')
+      .map(l => isChordRow(l) ? `<b>${esc(l)}</b>` : esc(l)).join('\n');
+    return `<div class="stanza">${lines}</div>`;
+  }).join('');
   return `<!doctype html><html><head><meta charset="utf-8">
 <title>${esc(name)}</title>
 <style>
   @page { margin: 18mm; }
   body { background: #fff; color: #111; font-family: 'IBM Plex Mono', ui-monospace, monospace;
-         font-size: 11pt; line-height: 1.55; margin: 0; }
-  h1 { font-size: 15pt; font-weight: 700; margin: 0; letter-spacing: 1px; }
-  .when { font-size: 9pt; color: #555; margin-top: 2px; }
+         font-size: 13.5pt; line-height: 1.5; margin: 0; }
+  h1 { font-size: 18pt; font-weight: 700; margin: 0; letter-spacing: 1px; }
+  .when { font-size: 10pt; color: #555; margin-top: 2px; }
+  /* chord rows carry the weight — on a stand you are reading them first, and
+     the grid still holds because bold monospace keeps the same advance */
+  .stanza b { font-weight: 700; }
   hr { border: 0; border-top: 1px solid #bbb; margin: 10px 0 16px; }
   .stanza { white-space: pre; break-inside: avoid; page-break-inside: avoid; margin-bottom: 14px; }
   @media print { .stanza { white-space: pre-wrap; } }
