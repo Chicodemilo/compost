@@ -361,9 +361,9 @@ textarea.notes::placeholder { color: #3a3a3a; }
   position: absolute; top: 0; right: 0; bottom: 0; width: 660px; max-width: 72%;
   background: #000; border: 1px solid #2e2e2e; border-radius: 2px;
   box-shadow: 0 0 30px 10px rgba(0, 0, 0, 0.92);
-  display: flex; align-items: flex-start; justify-content: center;
+  display: flex; flex-direction: column; align-items: center;
   overflow: hidden;               /* squeeze it and the wheel is cropped, never spilled */
-  padding-top: 22px;              /* sits up top; the room below is for what comes next */
+  padding: 22px 0 0;
   transform: translateX(110%); transition: transform .25s ease-out;
   pointer-events: none;
 }
@@ -373,6 +373,19 @@ textarea.notes::placeholder { color: #3a3a3a; }
   color: #c8b89a; white-space: pre; margin: 0;          /* majors; pre = never wraps */
   flex: 0 0 auto;                 /* and never squashed into wrapping either */
 }
+/* the key picker sits on the floor of the panel, under the wheel */
+#fifths .keybar {
+  margin-top: auto; width: 100%; padding: 14px 10px 16px;
+  display: flex; align-items: baseline; justify-content: center;
+  flex-wrap: wrap; gap: 0 10px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+  border-top: 1px solid #1d1d1d;
+}
+#fifths .keylbl { color: #555; letter-spacing: 2px; text-transform: uppercase;
+                  font-size: 10px; margin-right: 4px; }
+#fifths .keypick { color: #6a6a6a; cursor: pointer; padding: 2px 3px; border-radius: 2px; }
+#fifths .keypick:hover { color: #e8d5b5; background-color: #2a2a2a; }
+#fifths .keypick.on { color: #0a0a0a; background-color: #8f9f6b; }
 #fifths .wheel .maj { color: #c8b89a; }                 /* majors */
 #fifths .wheel .min { color: #7a8ab8; }                 /* relative minors */
 #fifths .wheel .pos { color: #8f9f6b; }                 /* scale degrees */
@@ -791,7 +804,10 @@ function renderActive(e) {
         <textarea class="notes" id="notes-box" spellcheck="true" maxlength="${MAX_NOTES}"
                   placeholder="work it out here…">${esc(e.notes || '')}</textarea>
         <div id="notes-lanes" hidden></div>
-        <aside id="fifths"><pre class="wheel">${buildFifths()}</pre></aside>
+        <aside id="fifths">
+          <pre class="wheel">${buildFifths()}</pre>
+          <div class="keybar" id="keybar">${keybarHTML()}</div>
+        </aside>
       </div>
       <div class="ribbon">
         <div class="rb-tabs" id="rb-tabs"></div>
@@ -948,6 +964,13 @@ const FIFTH_POS = ['I','V','II','VI','III','VII','#IV','bII','bVI','bIII','bVII'
 // wheel looks subtly buckled for reasons nobody can point at
 const halfAway = v => (v >= 0 ? Math.floor(v + 0.5) : -Math.floor(-v + 0.5));
 
+// Changing key needs no table. The wheel IS the maths: step round by fifths
+// and every degree keeps its place, so the key is one rotation of both rings
+// while I / IV / V stay nailed to the screen. The relative minors rotate by
+// exactly the same step, because a minor is fixed to its major, not to a spot.
+let fifthsKey = 0;
+const rot = (a, k) => a.slice(k).concat(a.slice(0, k));
+
 function buildFifths() {
   const W = 84, H = 35, cx = 41, cy = 16;
   const ch = Array.from({ length: H }, () => Array(W).fill(' '));
@@ -960,9 +983,9 @@ function buildFifths() {
     col = Math.max(0, Math.min(W - t.length, col));
     for (let n = 0; n < t.length; n++) { ch[row][col + n] = t[n]; kind[row][col + n] = k; }
   });
-  ring(FIFTH_POS, 38, 14, 'pos');
-  ring(FIFTH_MAJ, 31, 11, 'maj');
-  ring(FIFTH_MIN, 17, 6, 'min');
+  ring(FIFTH_POS, 38, 14, 'pos');                   // degrees hold still
+  ring(rot(FIFTH_MAJ, fifthsKey), 31, 11, 'maj');   // the keys turn under them
+  ring(rot(FIFTH_MIN, fifthsKey), 17, 6, 'min');
 
   let rows = ch.map((r, y) => {
     let out = '', run = '', runKind = null;
@@ -993,6 +1016,20 @@ function toggleFifths() {
   paintRibbon();
 }
 
+function keybarHTML() {
+  return '<span class="keylbl">key of</span>' + FIFTH_MAJ.map((n, i) =>
+    `<span class="keypick${i === fifthsKey ? ' on' : ''}" data-k="${i}">${esc(n)}</span>`
+  ).join('');
+}
+
+function setKey(k) {
+  fifthsKey = ((k % 12) + 12) % 12;
+  const wheel = document.querySelector('#fifths .wheel');
+  const bar = document.getElementById('keybar');
+  if (wheel) wheel.innerHTML = buildFifths();
+  if (bar) bar.innerHTML = keybarHTML();
+}
+
 function paintFifths() {
   const panel = document.getElementById('fifths');
   if (!panel) return;
@@ -1009,6 +1046,16 @@ function paintFifths() {
       }
       ev.preventDefault();                 // keep the cursor where it is
       placeFromWheel(hit.textContent.trim());
+    });
+  }
+  const bar = document.getElementById('keybar');
+  if (bar && !bar.dataset.wired) {
+    bar.dataset.wired = '1';
+    bar.addEventListener('mousedown', ev => {
+      const pick = ev.target.closest('.keypick');
+      if (!pick) return;
+      ev.preventDefault();                 // never steal the chord row's cursor
+      setKey(+pick.dataset.k);
     });
   }
   // only live when a chord row is open to receive one

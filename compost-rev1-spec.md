@@ -282,6 +282,12 @@ Single HTML file. Served locally. Not a webapp.
   Drawn as text, so it sits on the same character grid as the chord rows it will eventually
   talk to. The panel is clipped by the writing area, which is what keeps its shadow falling on
   the notes rather than the page behind.
+- **Changing key is a rotation, not a lookup table.** The wheel is the maths: step round by
+  fifths and every degree keeps its place, so a key change turns both rings by the same step
+  while `I / IV / V` stay nailed to the screen. The minors rotate with the majors because a
+  relative minor belongs to its major, not to a position. One caveat: each spot carries a single
+  spelling, so far round the circle you will see the enharmonic partner — `Ab` where the theory
+  wants `G#`. Same pitch, and the alternative is a table of twelve spellings per key.
 - The wheel is **generated from radii, not hand-drawn** — adding a ring is a line, not 29 rows
   of counted spaces. Rounding must go half-away-from-centre: `cos(120°)` and `cos(240°)` both
   give −0.5, and ordinary rounding puts them on different rows, which buckles the figure in a
