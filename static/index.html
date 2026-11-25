@@ -8,6 +8,9 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Mono:wght@400;700&display=swap');
 * { margin: 0; padding: 0; box-sizing: border-box; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
 body {
   background: #0a0a0a;
   color: #c8b89a;
@@ -174,6 +177,14 @@ body {
 }
 .header .random:hover { color: #c8b89a; }
 #active { display: none; padding: 16px 24px; }
+@keyframes scrimIn { from { background-color: rgba(0, 0, 0, 0); }
+                      to   { background-color: rgba(0, 0, 0, 0.72); } }
+@keyframes boxIn    { from { opacity: 0; transform: translateY(10px) scale(.985); }
+                      to   { opacity: 1; transform: none; } }
+@keyframes swapIn   { from { opacity: 0; transform: translateY(-4px); }
+                      to   { opacity: 1; transform: none; } }
+.swap-in { animation: swapIn .25s ease-out; }
+
 /* a modal, not a second page: the pile stays visible and dimmed around the
    edges, so it reads as something laid on top that you can put down again */
 #active.big {
@@ -181,6 +192,12 @@ body {
   background-color: rgba(0, 0, 0, 0.72);
   padding: 25px;
 }
+#active.big { animation: scrimIn .25s ease-out; }
+#active.big .active-box { animation: boxIn .25s ease-out; }
+/* closing has to be driven from the class, because the element cannot animate
+   its way out of a class that has already been taken off it */
+#active.big.closing { animation: scrimIn .25s ease-in reverse both; }
+#active.big.closing .active-box { animation: boxIn .25s ease-in reverse both; }
 #active.big .active-box {
   max-width: none; height: 100%; overflow-y: auto;
   display: flex; flex-direction: column;
@@ -347,7 +364,7 @@ textarea.notes::placeholder { color: #3a3a3a; }
   display: flex; align-items: flex-start; justify-content: center;
   overflow: hidden;               /* squeeze it and the wheel is cropped, never spilled */
   padding-top: 22px;              /* sits up top; the room below is for what comes next */
-  transform: translateX(110%); transition: transform .22s ease-out;
+  transform: translateX(110%); transition: transform .25s ease-out;
   pointer-events: none;
 }
 #fifths.open { transform: translateX(0); pointer-events: auto; }
@@ -726,7 +743,9 @@ function deetRows(e) {
 
 function renderActive(e) {
   flushNotes();        // the box is about to be replaced — don't let a pending save die with it
-  activeWrap.classList.remove('big');
+  clearTimeout(bigClosing);
+  activeWrap.classList.remove('big', 'closing');
+  lastShown = null;                    // a fresh hunk fades its sheet in
   activeHunk = e;
   notesSaved = e ? (e.notes || '') : null;
   if (!e) {
@@ -1144,6 +1163,9 @@ function wrapSelection(marker) {
 // every keystroke meant one bad line renumbered everything and the chords
 // jumped to the wrong words
 let laneRows = [];
+// which surface was showing last time, so a repaint — dropping a chord
+// repaints the whole stack — does not re-run the swap animation
+let lastShown = null;
 
 // Where a chord picked off the wheel will land: which chord row, and which
 // character column in it. Set by putting the cursor in a row, which is the
@@ -1196,9 +1218,12 @@ function paintChordRows() {
   btn?.classList.toggle('on', chordRowsOn);
   if (btn) btn.title = chordRowsOn ? 'put the chord rows away'
                                    : 'open a chord row above every line';
+  const changed = lastShown !== chordRowsOn;
+  lastShown = chordRowsOn;
   if (!chordRowsOn) {
     lanes.hidden = true;
     box.hidden = false;
+    if (changed) swapIn(box);
     return;
   }
   flushNotes();                        // never strand unsaved words behind a view switch
@@ -1214,6 +1239,16 @@ function paintChordRows() {
   showAim();
   box.hidden = true;
   lanes.hidden = false;
+  if (changed) swapIn(lanes);
+}
+
+// restart the animation by taking the class off and forcing a reflow —
+// re-adding it alone does nothing if it is already there
+function swapIn(el) {
+  if (!el) return;
+  el.classList.remove('swap-in');
+  void el.offsetWidth;
+  el.classList.add('swap-in');
 }
 
 // ---- chord chips ----
@@ -1469,9 +1504,20 @@ function wireRibbon(a) {
   paint();
 }
 
+let bigClosing = null;
+
 function toggleBig(force) {
-  const on = force !== undefined ? force : !activeWrap.classList.contains('big');
-  activeWrap.classList.toggle('big', on);
+  const isBig = activeWrap.classList.contains('big');
+  const on = force !== undefined ? force : !isBig;
+  clearTimeout(bigClosing);
+  activeWrap.classList.remove('closing');
+  if (on) {
+    activeWrap.classList.add('big');
+  } else if (isBig) {
+    // keep it in the dom long enough to animate out, then let it go
+    activeWrap.classList.add('closing');
+    bigClosing = setTimeout(() => activeWrap.classList.remove('big', 'closing'), 250);
+  }
   const btn = document.getElementById('big-btn');
   if (btn) {
     btn.innerHTML = on ? '[&gt;-&lt;]' : '[&lt;-&gt;]';   // pushing out, then pulling back in
