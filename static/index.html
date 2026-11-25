@@ -359,6 +359,11 @@ textarea.notes::placeholder { color: #3a3a3a; }
 #fifths .wheel .maj { color: #c8b89a; }                 /* majors */
 #fifths .wheel .min { color: #7a8ab8; }                 /* relative minors */
 #fifths .wheel .pos { color: #8f9f6b; }                 /* scale degrees */
+/* the chords only become pickable when there is a chord row to put one in */
+#fifths.armed .wheel .maj, #fifths.armed .wheel .min { cursor: pointer; }
+#fifths.armed .wheel .maj:hover, #fifths.armed .wheel .min:hover {
+  background-color: #2e3346; color: #fff; border-radius: 2px;
+}
 .lane { margin-bottom: 4px; }
 /* the chord row is a grid, not a text field. a chord sits at a character
    column, which is exactly how a chord sheet has always worked — so dragging
@@ -383,6 +388,8 @@ textarea.notes::placeholder { color: #3a3a3a; }
 .lane .chord-chip.dragging { cursor: grabbing; background-color: #44476a; color: #fff; z-index: 2; }
 /* not a chord yet — it will revert rather than be written out as one */
 .lane .chord-chip.bad { background-color: #4a2525; color: #e4b4b4; }
+/* the row the wheel will drop a chord into */
+.lane .chord-row.aimed { background-color: #2e2e2e; box-shadow: inset 2px 0 0 #8f9f6b; }
 .lane .lane-lyric {
   color: #e8d5b5; font-family: 'IBM Plex Mono', monospace; font-size: 13px;
   line-height: 1.7; white-space: pre-wrap; word-break: break-word;
@@ -958,7 +965,21 @@ function toggleFifths() {
 
 function paintFifths() {
   const panel = document.getElementById('fifths');
-  if (panel) panel.classList.toggle('open', fifthsOn);
+  if (!panel) return;
+  panel.classList.toggle('open', fifthsOn);
+  const wheel = panel.querySelector('.wheel');
+  if (wheel && !wheel.dataset.wired) {
+    wheel.dataset.wired = '1';
+    wheel.addEventListener('mousedown', ev => {
+      // mousedown, not click: by click time the chip has already blurred
+      const hit = ev.target.closest('.maj, .min');
+      if (!hit) return;
+      ev.preventDefault();                 // keep the cursor where it is
+      placeFromWheel(hit.textContent.trim());
+    });
+  }
+  // only live when a chord row is open to receive one
+  panel.classList.toggle('armed', fifthsOn && chordRowsOn);
 }
 
 // ---- the ribbon: tabs of tools ----
@@ -980,7 +1001,9 @@ const TAB_TOOLS = {
     <span class="tool-label">circle of 5ths</span>
     <span class="tool" id="rb-fifths" onclick="toggleFifths()"
           title="the wheel, down the right of the sheet">${fifthsOn ? '[close]' : '[open]'}</span>
-    <span class="rb-sep">|</span>`,
+    <span class="rb-sep">|</span>
+    <span class="rb-hint" id="rb-hint">${fifthsOn && chordRowsOn
+      ? 'click a chord row, then pick off the wheel' : ''}</span>`,
   text: () => `
     <span class="tool" onclick="wrapSelection('**')" title="**bold** the selected words">[bold]</span>
     <span class="tool" onclick="wrapSelection('*')" title="*italic* the selected words">[italic]</span>
@@ -1073,7 +1096,10 @@ function paintRibbon() {
 function selectTab(id) {
   activeTab = id;
   // the text tools work on the box, so they need the box rather than the lanes
-  if (id === 'text' && chordRowsOn) { chordRowsOn = false; paintChordRows(); }
+  if (id === 'text' && chordRowsOn) {
+    chordRowsOn = false; chordPoint = null;
+    paintChordRows(); paintFifths();     // the wheel must stop looking armed too
+  }
   paintRibbon();
 }
 
@@ -1104,11 +1130,47 @@ function wrapSelection(marker) {
 // every keystroke meant one bad line renumbered everything and the chords
 // jumped to the wrong words
 let laneRows = [];
+
+// Where a chord picked off the wheel will land: which chord row, and which
+// character column in it. Set by putting the cursor in a row, which is the
+// same gesture you would use to type one by hand.
+let chordPoint = null;
+
+function aimAt(row, col) {
+  chordPoint = { i: +row.dataset.i, col: Math.max(0, col) };
+  showAim();
+}
+
+function showAim() {
+  document.querySelectorAll('#notes-lanes .chord-row').forEach(r =>
+    r.classList.toggle('aimed', chordPoint !== null && +r.dataset.i === chordPoint.i));
+}
+
+// clicking a name on the wheel drops it where the cursor was, then steps past
+// it, so a progression can be clicked out left to right without re-aiming
+function placeFromWheel(name) {
+  if (!chordRowsOn || !fifthsOn) return;
+  if (!chordPoint) { fileSays('put the cursor in a chord row first', true); return; }
+  const row = document.querySelector(`#notes-lanes .chord-row[data-i="${chordPoint.i}"]`);
+  if (!row) { chordPoint = null; return; }
+  // clicking an empty part of the row leaves an empty chip waiting for typing;
+  // picking off the wheel instead means it was never going to be filled
+  row.querySelectorAll('.chord-chip').forEach(c => {
+    if (!c.textContent.trim()) c.remove();
+  });
+  const chip = newChip(chordPoint.col, row);
+  chip.textContent = name;
+  row.appendChild(chip);
+  commitLanes();
+  chordPoint.col += name.length + 1;
+}
 let chordRowsOn = false;
 
 function toggleChordRows() {
   chordRowsOn = !chordRowsOn;
+  if (!chordRowsOn) chordPoint = null;
   paintChordRows();
+  paintFifths();
   paintRibbon();
 }
 
@@ -1135,6 +1197,7 @@ function paintChordRows() {
        <div class="lane-lyric">${esc(r.lyric) || '&nbsp;'}</div>
      </div>`).join('') || '<div class="lane-lyric" style="color:#444">nothing written yet</div>';
   lanes.querySelectorAll('.chord-row').forEach(row => { wireChordRow(row); placeChips(row); });
+  showAim();
   box.hidden = true;
   lanes.hidden = false;
 }
@@ -1211,6 +1274,7 @@ function wireChordRow(row) {
                             // on top of each other land where the file actually puts them
       } else {
         chip.focus();                               // a click without a drag edits it
+        aimAt(row, +chip.dataset.col || 0);
       }
     };
     document.addEventListener('mousemove', move);
@@ -1225,6 +1289,7 @@ function wireChordRow(row) {
     const chip = newChip(col, row);
     row.appendChild(chip);
     chip.focus();
+    aimAt(row, col);
   });
 
   row.addEventListener('input', ev => {

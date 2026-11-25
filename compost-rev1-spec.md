@@ -286,6 +286,13 @@ Single HTML file. Served locally. Not a webapp.
   of counted spaces. Rounding must go half-away-from-centre: `cos(120°)` and `cos(240°)` both
   give −0.5, and ordinary rounding puts them on different rows, which buckles the figure in a
   way that is very hard to see and impossible to unsee.
+- **With both the chord rows and the wheel open, the wheel becomes a picker.** Put the cursor
+  in a chord row — by clicking a chord or an empty spot in it — and that row lights up as the
+  aim. Clicking a chord on the wheel drops it there and steps the aim past it, so a progression
+  can be clicked out left to right without re-aiming. Only the chords are pickable; a degree is
+  a label for a position, not something you would write in a chord row.
+- The wheel listens on **mousedown rather than click**, because by click time the focused chord
+  has already blurred and the aim would be gone.
 - Opening the wheel opens the big view, because it needs the room. What it *does* is not
   designed yet — for now it is a wheel to look at.
 - **text** holds markdown marks applied to the highlighted words: `[bold]` and `[italic]`.
