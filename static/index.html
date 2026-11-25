@@ -360,9 +360,20 @@ textarea.notes::placeholder { color: #3a3a3a; }
 #fifths .wheel .min { color: #7a8ab8; }                 /* relative minors */
 #fifths .wheel .pos { color: #8f9f6b; }                 /* scale degrees */
 /* the chords only become pickable when there is a chord row to put one in */
-#fifths.armed .wheel .maj, #fifths.armed .wheel .min { cursor: pointer; }
+#fifths.armed .wheel .maj, #fifths.armed .wheel .min {
+  cursor: pointer; position: relative;
+}
+/* a name is one or two characters — about 16px of target. the pseudo-element
+   widens what you can hit without moving a single character off the grid,
+   since it is positioned rather than laid out. */
+#fifths.armed .wheel .maj::before, #fifths.armed .wheel .min::before {
+  content: ''; position: absolute; inset: -5px -7px;   /* catches the click only */
+}
+/* the highlight grows by spread rather than padding — same reason: a padded
+   span would push its neighbours off the character grid */
 #fifths.armed .wheel .maj:hover, #fifths.armed .wheel .min:hover {
-  background-color: #2e3346; color: #fff; border-radius: 2px;
+  color: #fff; background-color: #2e3346; border-radius: 2px;
+  box-shadow: 0 0 0 4px #2e3346;
 }
 .lane { margin-bottom: 4px; }
 /* the chord row is a grid, not a text field. a chord sits at a character
@@ -973,7 +984,10 @@ function paintFifths() {
     wheel.addEventListener('mousedown', ev => {
       // mousedown, not click: by click time the chip has already blurred
       const hit = ev.target.closest('.maj, .min');
-      if (!hit) return;
+      if (!hit) {
+        if (chordRowsOn) fileSays('click the chord itself', true);
+        return;
+      }
       ev.preventDefault();                 // keep the cursor where it is
       placeFromWheel(hit.textContent.trim());
     });
